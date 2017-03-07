@@ -4,24 +4,31 @@ import (
 	"errors"
 )
 
-// Protocol errors
-var ErrInvalidRequest = errors.New("redeo: invalid request")
+var (
+	errInvalidMultiBulkLength = errors.New("Protocol error: invalid multibulk length")
+	errInvalidBulkLength      = errors.New("Protocol error: invalid bulk length")
+)
 
-// Client errors can be returned by handlers.
-// Unlike other errors, client errors do not disconnect the client
-type ClientError string
-
-// Error returns the error message
-func (e ClientError) Error() string {
-	return "redeo: " + string(e)
+// UnknownCommand returns an unknown command error string
+func UnknownCommand(cmd string) string {
+	return "ERR unknown command '" + cmd + "'"
 }
 
-// UnknownCommand returns an unknown command
-func UnknownCommand(command string) ClientError {
-	return ClientError("unknown command '" + command + "'")
+// WrongNumberOfArgs returns an unknown command error string
+func WrongNumberOfArgs(cmd string) string {
+	return "ERR wrong number of arguments for '" + cmd + "' command"
 }
 
-// WrongNumberOfArgs returns an unknown command
-func WrongNumberOfArgs(command string) ClientError {
-	return ClientError("wrong number of arguments for '" + command + "' command")
+// Handler is an abstract handler interface
+type Handler interface {
+	// ServeRedeo serves a request. If the ResponseBuffer remains empty
+	// after the request, an inline "+OK\r\n" string will be returned
+	// to the client by default.
+	ServeRedeo(w *ResponseBuffer, c *Command)
 }
+
+// HandlerFunc is a callback function, implementing Handler.
+type HandlerFunc func(w *ResponseBuffer, c *Command)
+
+// ServeRedeo calls f(w, c).
+func (f HandlerFunc) ServeRedeo(w *ResponseBuffer, c *Command) { f(w, c) }

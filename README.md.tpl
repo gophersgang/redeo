@@ -24,85 +24,13 @@ import (
   "github.com/bsm/redeo"
 )
 
-func main() {
-
-	srv := redeo.NewServer(nil)
-	srv.HandleFunc("ping", func(w *redeo.ResponseBuffer, _ *redeo.Command) {
-		w.AppendInlineString("PONG")
-	})
-	srv.HandleFunc("info", func(w *redeo.ResponseBuffer, _ *redeo.Command) {
-		w.AppendString(srv.Info().String())
-	})
-
-	lis, err := net.Listen("tcp", ":9736")
-	if err != nil {
-		panic(err)
-	}
-	defer lis.Close()
-
-	srv.Serve(lis)
-}
+func main() {{ "ExampleServer" | code }}
 ```
 
 More complex handlers:
 
 ```go
-func main() {
-	mu := sync.RWMutex{}
-	myData := make(map[string]map[string]string)
-	srv := redeo.NewServer(nil)
-
-	srv.HandleFunc("hset", func(w *redeo.ResponseBuffer, c *redeo.Command) {
-
-		if len(c.Args) != 3 {
-			w.AppendError(redeo.WrongNumberOfArgs(c.Name))
-			return
-		}
-
-		mu.Lock()
-		defer mu.Unlock()
-
-		key, ok := myData[c.Args[0]]
-		if !ok {
-			key = make(map[string]string)
-			myData[c.Args[0]] = key
-		}
-
-		_, ok = key[c.Args[1]]
-
-		key[c.Args[1]] = c.Args[2]
-
-		if ok {
-			w.AppendInt(0)
-		} else {
-			w.AppendInt(1)
-		}
-	})
-
-	srv.HandleFunc("hget", func(w *redeo.ResponseBuffer, c *redeo.Command) {
-		if len(c.Args) != 2 {
-			w.AppendError(redeo.WrongNumberOfArgs(c.Name))
-			return
-		}
-
-		mu.RLock()
-		defer mu.RUnlock()
-
-		key, ok := myData[c.Args[0]]
-		if !ok {
-			w.AppendNil()
-			return
-		}
-
-		val, ok := key[c.Args[1]]
-		if !ok {
-			w.AppendNil()
-			return
-		}
-
-		w.AppendString(val)
-	})
-}
+func main() {{ "ExampleHandlerFunc" | code }}
 ```
 
 ## Licence

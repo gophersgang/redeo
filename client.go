@@ -1,81 +1,90 @@
 package redeo
 
 import (
-	"fmt"
+	"bufio"
+	"context"
 	"net"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
-type clientSlice []*Client
-
-func (p clientSlice) Len() int           { return len(p) }
-func (p clientSlice) Less(i, j int) bool { return p[i].id < p[j].id }
-func (p clientSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
 var clientInc = uint64(0)
+var clientPool sync.Pool
 
-// A client is the origin of a request
+// Client contains information about a client connection
 type Client struct {
-	Ctx interface{}
+	id uint64
+	cn net.Conn
 
-	id   uint64
-	conn net.Conn
+	rd *bufio.Reader
+	wr *ResponseBuffer
 
-	firstAccess time.Time
-	lastAccess  time.Time
-	lastCommand string
+	buf []byte
+	ctx context.Context
 
-	quit  bool
-	mutex sync.Mutex
+	closed bool
 }
 
-// NewClient creates a new client info container
-func NewClient(conn net.Conn) *Client {
-	now := time.Now()
-	return &Client{
-		id:          atomic.AddUint64(&clientInc, 1),
-		conn:        conn,
-		firstAccess: now,
-		lastAccess:  now,
+func newClient(cn net.Conn) *Client {
+	var c *Client
+
+	if v := clientPool.Get(); v != nil {
+		c = v.(*Client)
+		c.rd.Reset(cn)
+		c.wr.reset(cn)
+		c.buf = c.buf[:0]
+	} else {
+		c = new(Client)
+		c.rd = bufio.NewReader(cn)
+		c.wr = NewResponseBuffer(cn)
 	}
+	c.id = atomic.AddUint64(&clientInc, 1)
+	c.cn = cn
+	return c
 }
 
 // ID return the unique client id
-func (i *Client) ID() uint64 { return i.id }
+func (c *Client) ID() uint64 { return c.id }
+
+// Context return the client context
+func (c *Client) Context() context.Context {
+	if c.ctx != nil {
+		return c.ctx
+	}
+	return context.Background()
+}
+
+// SetContext sets the client's context
+func (c *Client) SetContext(ctx context.Context) {
+	c.ctx = ctx
+}
 
 // RemoteAddr return the remote client address
-func (i *Client) RemoteAddr() net.Addr { return i.conn.RemoteAddr() }
+func (c *Client) RemoteAddr() net.Addr {
+	return c.cn.RemoteAddr()
+}
 
 // Close will disconnect as soon as all pending replies have been written
 // to the client
-func (i *Client) Close() { i.quit = true }
-
-// String generates an info string
-func (i *Client) String() string {
-	i.mutex.Lock()
-	cmd := i.lastCommand
-	atime := i.lastAccess
-	i.mutex.Unlock()
-
-	now := time.Now()
-	age := now.Sub(i.firstAccess) / time.Second
-	idle := now.Sub(atime) / time.Second
-
-	return fmt.Sprintf("id=%d addr=%s age=%d idle=%d cmd=%s", i.id, i.RemoteAddr(), age, idle, cmd)
+func (c *Client) Close() {
+	c.closed = true
 }
 
-// ------------------------------------------------------------------------
+func (c *Client) eachCommand(fn func(*Command) error) error {
+	for hasMore := true; hasMore; hasMore = (c.rd.Buffered() != 0) {
+		cmd, err := readCommand(c.rd, c)
+		if err != nil {
+			return err
+		}
+		if err := fn(cmd); err != nil {
+			return err
+		}
+		cmd.release()
+	}
+	return nil
+}
 
-// Instantly closes the underlying socket connection
-func (i *Client) close() error { return i.conn.Close() }
-
-// Tracks user command
-func (i *Client) trackCommand(cmd string) {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	i.lastAccess = time.Now()
-	i.lastCommand = cmd
+func (c *Client) release() {
+	_ = c.cn.Close()
+	clientPool.Put(c)
 }
