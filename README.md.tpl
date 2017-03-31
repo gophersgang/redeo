@@ -3,17 +3,28 @@
 [![GoDoc](https://godoc.org/github.com/bsm/redeo?status.svg)](https://godoc.org/github.com/bsm/redeo)
 [![Build Status](https://travis-ci.org/bsm/redeo.png?branch=master)](https://travis-ci.org/bsm/redeo)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bsm/redeo)](https://goreportcard.com/report/github.com/bsm/redeo)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-High-performance framework for building redis-protocol compatible TCP
-servers/services. Optimised for speed!
+The high-performance Swiss Army Knife for building redis-protocol compatible servers/services.
 
-## Full Documentation
+## Parts
 
-For documentation and examples, please see https://godoc.org/github.com/bsm/redeo.
+This repository is organised into multiple components:
+
+* [root](./) package contains the framework for building redis-protocol compatible,
+  high-performance servers.
+* [resp](./resp/) implements low-level primitives for dealing with
+  RESP (REdis Serialization Protocol), client and server-side. It
+  contains basic wrappers for readers and writers to read/write requests and
+  responses.
+* [client](./client/) contains a minimalist pooled client.
+
+For full documentation and examples, please see the individual packages and the
+official API documentation: https://godoc.org/github.com/bsm/redeo.
 
 ## Examples
 
-A simple example with two commands:
+A simple server example with two commands:
 
 ```go
 package main
@@ -32,22 +43,3 @@ More complex handlers:
 ```go
 func main() {{ "ExampleHandlerFunc" | code }}
 ```
-
-## Licence
-
-```
-Copyright 2017 Black Square Media Ltd
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-  http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-```
-

@@ -4,6 +4,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/bsm/redeo/resp"
 )
 
 // Server configuration
@@ -77,17 +79,20 @@ func (srv *Server) serveClient(c *Client) {
 		}
 
 		// perform pipeline
-		if err := c.eachCommand(func(cmd *Command) error {
+		if err := c.eachCommand(func(cmd *resp.Command) error {
 			srv.perform(c, cmd)
 
-			if n := c.wr.Buffered(); n >= maxResponseBufferSize {
+			if n := c.wr.Buffered(); n >= 4096 {
 				return c.wr.Flush()
 			}
 			return nil
 		}); err != nil {
 			c.wr.AppendError("ERR " + err.Error())
-			_ = c.wr.Flush()
-			return
+
+			if !resp.IsProtocolError(err) {
+				_ = c.wr.Flush()
+				return
+			}
 		}
 
 		// flush buffer, return on errors
@@ -97,9 +102,9 @@ func (srv *Server) serveClient(c *Client) {
 	}
 }
 
-func (srv *Server) perform(c *Client, cmd *Command) {
+func (srv *Server) perform(c *Client, cmd *resp.Command) {
 	// find handler
-	handler, ok := srv.commands[cmd.Name]
+	handler, ok := srv.commands[strings.ToLower(cmd.Name)]
 	if !ok {
 		c.wr.AppendError(UnknownCommand(cmd.Name))
 		return
@@ -109,10 +114,5 @@ func (srv *Server) perform(c *Client, cmd *Command) {
 	srv.info.command(c.id, cmd.Name)
 
 	// serve command
-	c.wr.dirty = false
-	buffered := c.wr.Buffered()
 	handler.ServeRedeo(c.wr, cmd)
-	if c.wr.Buffered() == buffered && !c.wr.dirty {
-		c.wr.AppendOK()
-	}
 }

@@ -5,12 +5,14 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/bsm/redeo/info"
 )
 
+// ClientInfo contains client stats
 type ClientInfo struct {
 	// ID is the internal client ID
 	ID uint64
@@ -52,6 +54,7 @@ func (i *ClientInfo) String() string {
 
 // --------------------------------------------------------------------
 
+// ServerInfo contains server stats
 type ServerInfo struct {
 	registry *info.Registry
 
@@ -156,7 +159,7 @@ func (s *clientStats) Cmd(clientID uint64, cmd string) {
 	s.mu.Lock()
 	if info, ok := s.stats[clientID]; ok {
 		info.AccessTime = time.Now()
-		info.LastCmd = cmd
+		info.LastCmd = strings.ToLower(cmd)
 	}
 	s.mu.Unlock()
 }

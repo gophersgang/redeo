@@ -2,7 +2,7 @@ package redeo
 
 import "time"
 
-// Server configuration
+// Config holds the server configuration
 type Config struct {
 	// Timeout represents the per-request socket read/write timeout.
 	// Default: 0 (disabled)

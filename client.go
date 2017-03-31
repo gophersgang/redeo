@@ -1,45 +1,36 @@
 package redeo
 
 import (
-	"bufio"
 	"context"
 	"net"
 	"sync"
 	"sync/atomic"
+
+	"github.com/bsm/redeo/resp"
 )
 
-var clientInc = uint64(0)
-var clientPool sync.Pool
+var (
+	clientInc  = uint64(0)
+	readerPool sync.Pool
+	writerPool sync.Pool
+)
 
 // Client contains information about a client connection
 type Client struct {
 	id uint64
 	cn net.Conn
 
-	rd *bufio.Reader
-	wr *ResponseBuffer
+	rd *resp.RequestReader
+	wr resp.ResponseWriter
 
-	buf []byte
-	ctx context.Context
-
+	ctx    context.Context
+	cmd    *resp.Command
 	closed bool
 }
 
 func newClient(cn net.Conn) *Client {
-	var c *Client
-
-	if v := clientPool.Get(); v != nil {
-		c = v.(*Client)
-		c.rd.Reset(cn)
-		c.wr.reset(cn)
-		c.buf = c.buf[:0]
-	} else {
-		c = new(Client)
-		c.rd = bufio.NewReader(cn)
-		c.wr = NewResponseBuffer(cn)
-	}
-	c.id = atomic.AddUint64(&clientInc, 1)
-	c.cn = cn
+	c := new(Client)
+	c.reset(cn)
 	return c
 }
 
@@ -70,21 +61,41 @@ func (c *Client) Close() {
 	c.closed = true
 }
 
-func (c *Client) eachCommand(fn func(*Command) error) error {
-	for hasMore := true; hasMore; hasMore = (c.rd.Buffered() != 0) {
-		cmd, err := readCommand(c.rd, c)
-		if err != nil {
-			return err
+func (c *Client) eachCommand(fn func(*resp.Command) error) (err error) {
+	for more := true; more && err == nil; more = c.rd.Buffered() != 0 {
+		if c.cmd, err = c.rd.ReadCmd(c.cmd); err != nil {
+			return
 		}
-		if err := fn(cmd); err != nil {
-			return err
-		}
-		cmd.release()
+		err = fn(c.cmd)
 	}
-	return nil
+	return
 }
 
 func (c *Client) release() {
 	_ = c.cn.Close()
-	clientPool.Put(c)
+	readerPool.Put(c.rd)
+	writerPool.Put(c.wr)
+}
+
+func (c *Client) reset(cn net.Conn) {
+	*c = Client{
+		id: atomic.AddUint64(&clientInc, 1),
+		cn: cn,
+	}
+
+	if v := readerPool.Get(); v != nil {
+		rd := v.(*resp.RequestReader)
+		rd.Reset(cn)
+		c.rd = rd
+	} else {
+		c.rd = resp.NewRequestReader(cn)
+	}
+
+	if v := writerPool.Get(); v != nil {
+		wr := v.(resp.ResponseWriter)
+		wr.Reset(cn)
+		c.wr = wr
+	} else {
+		c.wr = resp.NewResponseWriter(cn)
+	}
 }

@@ -3,17 +3,28 @@
 [![GoDoc](https://godoc.org/github.com/bsm/redeo?status.svg)](https://godoc.org/github.com/bsm/redeo)
 [![Build Status](https://travis-ci.org/bsm/redeo.png?branch=master)](https://travis-ci.org/bsm/redeo)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bsm/redeo)](https://goreportcard.com/report/github.com/bsm/redeo)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-High-performance framework for building redis-protocol compatible TCP
-servers/services. Optimised for speed!
+The high-performance Swiss Army Knife for building redis-protocol compatible servers/services.
 
-## Full Documentation
+## Parts
 
-For documentation and examples, please see https://godoc.org/github.com/bsm/redeo.
+This repository is organised into multiple components:
+
+* [root](./) package contains the framework for building redis-protocol compatible,
+  high-performance servers.
+* [resp](./resp/) implements low-level primitives for dealing with
+  RESP (REdis Serialization Protocol), client and server-side. It
+  contains basic wrappers for readers and writers to read/write requests and
+  responses.
+* [client](./client/) contains a minimalist pooled client.
+
+For full documentation and examples, please see the individual packages and the
+official API documentation: https://godoc.org/github.com/bsm/redeo.
 
 ## Examples
 
-A simple example with two commands:
+A simple server example with two commands:
 
 ```go
 package main
@@ -25,21 +36,23 @@ import (
 )
 
 func main() {
-
+	// Init server and define handlers
 	srv := redeo.NewServer(nil)
-	srv.HandleFunc("ping", func(w *redeo.ResponseBuffer, _ *redeo.Command) {
+	srv.HandleFunc("ping", func(w resp.ResponseWriter, _ *resp.Command) {
 		w.AppendInlineString("PONG")
 	})
-	srv.HandleFunc("info", func(w *redeo.ResponseBuffer, _ *redeo.Command) {
+	srv.HandleFunc("info", func(w resp.ResponseWriter, _ *resp.Command) {
 		w.AppendString(srv.Info().String())
 	})
 
+	// Open a new listener
 	lis, err := net.Listen("tcp", ":9736")
 	if err != nil {
 		panic(err)
 	}
 	defer lis.Close()
 
+	// Start serving (blocking)
 	srv.Serve(lis)
 }
 ```
@@ -52,26 +65,32 @@ func main() {
 	myData := make(map[string]map[string]string)
 	srv := redeo.NewServer(nil)
 
-	srv.HandleFunc("hset", func(w *redeo.ResponseBuffer, c *redeo.Command) {
-
-		if len(c.Args) != 3 {
+	// handle HSET
+	srv.HandleFunc("hset", func(w resp.ResponseWriter, c *resp.Command) {
+		// validate arguments
+		if c.ArgN() != 3 {
 			w.AppendError(redeo.WrongNumberOfArgs(c.Name))
 			return
 		}
 
+		// lock for write
 		mu.Lock()
 		defer mu.Unlock()
 
-		key, ok := myData[c.Args[0]]
+		// fetch (find-or-create) key
+		hash, ok := myData[c.Arg(0).String()]
 		if !ok {
-			key = make(map[string]string)
-			myData[c.Args[0]] = key
+			hash = make(map[string]string)
+			myData[c.Arg(0).String()] = hash
 		}
 
-		_, ok = key[c.Args[1]]
+		// check if field already exists
+		_, ok = hash[c.Arg(1).String()]
 
-		key[c.Args[1]] = c.Args[2]
+		// set field
+		hash[c.Arg(1).String()] = c.Arg(2).String()
 
+		// respond
 		if ok {
 			w.AppendInt(0)
 		} else {
@@ -79,8 +98,9 @@ func main() {
 		}
 	})
 
-	srv.HandleFunc("hget", func(w *redeo.ResponseBuffer, c *redeo.Command) {
-		if len(c.Args) != 2 {
+	// handle HGET
+	srv.HandleFunc("hget", func(w resp.ResponseWriter, c *resp.Command) {
+		if c.ArgN() != 2 {
 			w.AppendError(redeo.WrongNumberOfArgs(c.Name))
 			return
 		}
@@ -88,13 +108,13 @@ func main() {
 		mu.RLock()
 		defer mu.RUnlock()
 
-		key, ok := myData[c.Args[0]]
+		hash, ok := myData[c.Arg(0).String()]
 		if !ok {
 			w.AppendNil()
 			return
 		}
 
-		val, ok := key[c.Args[1]]
+		val, ok := hash[c.Arg(1).String()]
 		if !ok {
 			w.AppendNil()
 			return
@@ -104,22 +124,3 @@ func main() {
 	})
 }
 ```
-
-## Licence
-
-```
-Copyright 2017 Black Square Media Ltd
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-  http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-```
-
