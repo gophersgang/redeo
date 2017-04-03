@@ -3,28 +3,28 @@
 // server side readers and writers.
 package resp
 
-import "errors"
+import "fmt"
 
-type protocolError string
+type protoError string
 
-func (p protocolError) Error() string { return string(p) }
+func (p protoError) Error() string { return string(p) }
+
+func protoErrorf(m string, args ...interface{}) error {
+	return protoError(fmt.Sprintf(m, args...))
+}
 
 // IsProtocolError returns true if the error is a protocol error
 func IsProtocolError(err error) bool {
-	_, ok := err.(protocolError)
+	_, ok := err.(protoError)
 	return ok
 }
 
 const (
-	errInvalidMultiBulkLength = protocolError("Protocol error: invalid multibulk length")
-	errInvalidBulkLength      = protocolError("Protocol error: invalid bulk length")
-	errBlankBulkLength        = protocolError("Protocol error: expected '$', got ' '")
-)
-
-var (
-	errNotAnInt   = errors.New("resp: not an int")
-	errNotAnError = errors.New("resp: not an error")
-	errNotAStatus = errors.New("resp: not a status")
+	errInvalidMultiBulkLength = protoError("Protocol error: invalid multibulk length")
+	errInvalidBulkLength      = protoError("Protocol error: invalid bulk length")
+	errBlankBulkLength        = protoError("Protocol error: expected '$', got ' '")
+	errNotAnInteger           = protoError("Protocol error: expected an integer")
+	errNotANilMessage         = protoError("Protocol error: expected a nil")
 )
 
 var (
@@ -35,6 +35,6 @@ var (
 	binNIL  = []byte("$-1\r\n")
 )
 
-const defaultBufferSize = 4096
+const MaxBufferSize = 64 * 1024
 
-func mkbuf() []byte { return make([]byte, defaultBufferSize) }
+func mkStdBuffer() []byte { return make([]byte, MaxBufferSize) }

@@ -14,7 +14,7 @@ func WrongNumberOfArgs(cmd string) string {
 	return "ERR wrong number of arguments for '" + cmd + "' command"
 }
 
-// Handler is an abstract handler interface
+// Handler is an abstract handler interface for handling commands
 type Handler interface {
 	// ServeRedeo serves a request. If the ResponseBuffer remains empty
 	// after the request, an inline "+OK\r\n" string will be returned

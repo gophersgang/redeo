@@ -150,10 +150,27 @@ var _ = Describe("RequestReader", func() {
 
 		Entry("blank multi-bulk len", "*\r\n", "Protocol error: invalid multibulk length"),
 		Entry("bad multi-bulk len", "*x\r\n", "Protocol error: invalid multibulk length"),
-		Entry("no bulk len", "*1\r\n", "Protocol error: expected '$', got ' '"),
 		Entry("inline inside multi-bulk", "*1\r\nPING\r\n", "Protocol error: expected '$', got 'P'"),
 		Entry("bad bulk length", "*1\r\n$x\r\n", "Protocol error: invalid bulk length"),
 		Entry("negative bulk length", "*1\r\n$-1\r\n", "Protocol error: invalid bulk length"),
+	)
+
+	DescribeTable("should peek commands",
+		func(s string, exp string) {
+			r := setup(s)
+			name, err := r.PeekCmd()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(name).To(Equal(exp))
+		},
+
+		Entry("inline requests",
+			"PING\r\n", "PING"),
+		Entry("multiple inline requests with args",
+			"  ECHO HELLO  \r\n", "ECHO"),
+		Entry("blank multi-bulks",
+			"*0\r\nPING\r\n", "PING"),
+		Entry("multi-bulks",
+			"*1\r\n$4\r\nPING\r\n", "PING"),
 	)
 
 })
@@ -222,7 +239,7 @@ var _ = Describe("RequestWriter", func() {
 	})
 
 	It("should copy oversize arguments directly from reader", func() {
-		rd := bytes.NewBufferString(strings.Repeat("x", 10000))
+		rd := bytes.NewBufferString(strings.Repeat("x", 100000))
 		w := setup()
 		Expect(w.WriteMultiBulkSize(3)).To(Succeed())
 		w.WriteBulkString("PUT")
@@ -230,11 +247,11 @@ var _ = Describe("RequestWriter", func() {
 		Expect(w.Buffered()).To(Equal(22))
 		Expect(buf.Len()).To(Equal(0))
 
-		Expect(w.WriteFromN(rd, 8000)).To(Succeed())
+		Expect(w.WriteFromN(rd, 80000)).To(Succeed())
 		Expect(w.Buffered()).To(Equal(2))
-		Expect(buf.Len()).To(Equal(8029))
+		Expect(buf.Len()).To(Equal(80030))
 		Expect(w.Flush()).To(Succeed())
-		Expect(buf.Len()).To(Equal(8031))
+		Expect(buf.Len()).To(Equal(80032))
 	})
 
 })

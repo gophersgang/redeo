@@ -82,7 +82,7 @@ func (srv *Server) serveClient(c *Client) {
 		if err := c.eachCommand(func(cmd *resp.Command) error {
 			srv.perform(c, cmd)
 
-			if n := c.wr.Buffered(); n >= 4096 {
+			if n := c.wr.Buffered(); n >= resp.MaxBufferSize {
 				return c.wr.Flush()
 			}
 			return nil

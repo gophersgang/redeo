@@ -38,7 +38,7 @@ type ResponseWriter interface {
 // normally a net.Conn.
 func NewResponseWriter(wr io.Writer) ResponseWriter {
 	w := new(bufioW)
-	w.reset(mkbuf(), wr)
+	w.reset(mkStdBuffer(), wr)
 	return w
 }
 
@@ -84,6 +84,6 @@ type ResponseReader interface {
 // normally a net.Conn.
 func NewResponseReader(rd io.Reader) ResponseReader {
 	r := new(bufioR)
-	r.reset(mkbuf(), rd)
+	r.reset(mkStdBuffer(), rd)
 	return r
 }

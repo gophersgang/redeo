@@ -86,3 +86,37 @@ func (c *Command) grow(n int) {
 		c.argv = c.argv[:n]
 	}
 }
+
+// --------------------------------------------------------------------
+
+// CommandStream instances are commands where the arguments are not
+// automatically parsed but can be consumed as a stream.
+type CommandStream struct {
+	// Name refers to the command name
+	Name string
+
+	argc int
+	ctx  context.Context
+
+	r *bufioR
+}
+
+// ArgN returns the number of command arguments
+func (c *CommandStream) ArgN() int {
+	return c.argc
+}
+
+// Context returns the context
+func (c *CommandStream) Context() context.Context {
+	if c.ctx != nil {
+		return c.ctx
+	}
+	return context.Background()
+}
+
+// SetContext sets the request context.
+func (c *CommandStream) SetContext(ctx context.Context) {
+	if ctx != nil {
+		c.ctx = ctx
+	}
+}

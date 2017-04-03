@@ -13,7 +13,7 @@ type RequestReader struct {
 // NewRequestReader wraps any reader interface
 func NewRequestReader(rd io.Reader) *RequestReader {
 	r := new(bufioR)
-	r.reset(mkbuf(), rd)
+	r.reset(mkStdBuffer(), rd)
 	return &RequestReader{r: r}
 }
 
@@ -25,6 +25,11 @@ func (r *RequestReader) Buffered() int {
 // Reset resets the reader to a new reader and recycles internal buffers.
 func (r *RequestReader) Reset(rd io.Reader) {
 	r.r.Reset(rd)
+}
+
+// PeekCmd peeks the next command name.
+func (r *RequestReader) PeekCmd() (string, error) {
+	return r.peekCmd(0)
 }
 
 // ReadCmd reads the next command. It optionally recycles the cmd passed.
@@ -49,42 +54,36 @@ func (r *RequestReader) readInlineCmd(cmd *Command) (*Command, error) {
 		cmd = new(Command)
 	}
 
+	line, err := r.r.ReadLine()
+	if err != nil {
+		return cmd, err
+	}
+
 	var name []byte
-	defer func() {
-		if name != nil {
-			cmd.Name = string(name)
-		}
-	}()
 
-	inField := false
-	for {
-		b, err := r.r.ReadByte()
-		if err != nil {
-			return cmd, err
-		}
-
-		switch b {
-		case '\r', '\n':
-			r.r.DiscardCRLF()
-			if name == nil {
-				return r.ReadCmd(cmd)
-			}
-			return cmd, nil
+	inWord := false
+	for _, c := range line.Trim() {
+		switch c {
 		case ' ', '\t':
-			inField = false
+			inWord = false
 		default:
-			if !inField && name != nil {
+			if !inWord && name != nil {
 				cmd.argc++
 				cmd.grow(cmd.argc)
 			}
 			if pos := cmd.argc - 1; pos > -1 {
-				cmd.argv[pos] = append(cmd.argv[pos], b)
+				cmd.argv[pos] = append(cmd.argv[pos], c)
 			} else {
-				name = append(name, b)
+				name = append(name, c)
 			}
-			inField = true
+			inWord = true
 		}
 	}
+	if name == nil {
+		return r.ReadCmd(cmd)
+	}
+	cmd.Name = string(name)
+	return cmd, nil
 }
 
 func (r *RequestReader) readMultiBulkCmd(cmd *Command) (*Command, error) {
@@ -118,6 +117,46 @@ func (r *RequestReader) readMultiBulkCmd(cmd *Command) (*Command, error) {
 	return cmd, err
 }
 
+func (r *RequestReader) peekCmd(offset int) (string, error) {
+	line, err := r.r.PeekLine(offset)
+	if err != nil {
+		return "", err
+	}
+	offset += len(line)
+
+	if len(line) == 0 {
+		return "", nil
+	} else if line[0] == '*' {
+		return r.peekMultiBulkCmd(offset, line)
+	}
+	return line.FirstWord(), nil
+}
+
+func (r *RequestReader) peekMultiBulkCmd(offset int, line bufioLn) (string, error) {
+	sz, err := line.ParseSize('*', errInvalidMultiBulkLength)
+	if err != nil {
+		return "", err
+	}
+
+	if sz < 1 {
+		return r.peekCmd(offset)
+	}
+
+	line, err = r.r.PeekLine(offset)
+	if err != nil {
+		return "", err
+	}
+	offset += len(line)
+
+	sz, err = line.ParseSize('$', errInvalidBulkLength)
+	if err != nil {
+		return "", err
+	}
+
+	data, err := r.r.PeekN(offset, sz)
+	return string(data), err
+}
+
 // --------------------------------------------------------------------
 
 // RequestWriter is used by clients to send commands to servers.
@@ -128,7 +167,7 @@ type RequestWriter struct {
 // NewRequestWriter wraps any Writer interface
 func NewRequestWriter(wr io.Writer) *RequestWriter {
 	w := new(bufioW)
-	w.reset(mkbuf(), wr)
+	w.reset(mkStdBuffer(), wr)
 	return &RequestWriter{w: w}
 }
 
