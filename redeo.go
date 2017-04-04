@@ -16,9 +16,7 @@ func WrongNumberOfArgs(cmd string) string {
 
 // Handler is an abstract handler interface for handling commands
 type Handler interface {
-	// ServeRedeo serves a request. If the ResponseBuffer remains empty
-	// after the request, an inline "+OK\r\n" string will be returned
-	// to the client by default.
+	// ServeRedeo serves a request.
 	ServeRedeo(w resp.ResponseWriter, c *resp.Command)
 }
 

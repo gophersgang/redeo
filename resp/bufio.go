@@ -205,7 +205,7 @@ func (b *bufioR) PeekLine(offset int) (bufioLn, error) {
 
 	// fail if still nothing found
 	if index < 0 {
-		return nil, nil
+		return nil, errInlineRequestTooLong
 	}
 	return bufioLn(b.buf[start : start+index+1]), nil
 }
@@ -377,9 +377,8 @@ func (ln bufioLn) ParseSize(prefix byte, fallback error) (int, error) {
 // --------------------------------------------------------------------
 
 type bufioW struct {
-	wr    io.Writer
-	buf   []byte
-	dirty bool
+	wr  io.Writer
+	buf []byte
 }
 
 // Buffered returns the number of buffered bytes
@@ -490,7 +489,6 @@ func (b *bufioW) Flush() error {
 	}
 
 	b.buf = b.buf[:0]
-	b.dirty = true
 	return nil
 }
 

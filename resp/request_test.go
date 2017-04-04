@@ -38,6 +38,12 @@ var _ = Describe("RequestReader", func() {
 		Expect(cmd).To(MatchCommand(""))
 	})
 
+	It("should reject inline commands that are larger than the buffer", func() {
+		r := setup("ECHO " + strings.Repeat("x", 100000) + "\r\n")
+		_, err := r.ReadCmd(nil)
+		Expect(err).To(MatchError("Protocol error: too big inline request"))
+	})
+
 	It("should read multi-bulk requests", func() {
 		r := setup("*1\r\n$4\r\nPING\r\n*2\r\n$4\r\nEcHO\r\n$5\r\nHeLLO\r\n")
 
@@ -76,13 +82,13 @@ var _ = Describe("RequestReader", func() {
 	})
 
 	It("should read commands that are larger than the buffer", func() {
-		r := setup("*2\r\n$4\r\nECHO\r\n$262144\r\n" + strings.Repeat("x", 262144) + "\r\n")
+		r := setup("*2\r\n$4\r\nECHO\r\n$100000\r\n" + strings.Repeat("x", 100000) + "\r\n")
 
 		cmd, err := r.ReadCmd(nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(cmd.Name).To(Equal("ECHO"))
 		Expect(cmd.ArgN()).To(Equal(1))
-		Expect(len(cmd.Arg(0))).To(Equal(262144))
+		Expect(len(cmd.Arg(0))).To(Equal(100000))
 	})
 
 	DescribeTable("should read commands",

@@ -286,7 +286,7 @@ func benchmarkServer(b *testing.B, pipe []byte, expN int) {
 		if n, err := conn.Read(buf); err != nil {
 			b.Fatal(err)
 		} else if n != expN {
-			b.Fatalf("expected response to be %d bytes long, not %d: %q", expN, n)
+			b.Fatalf("expected response to be %d bytes long, not %d", expN, n)
 		}
 	}
 }

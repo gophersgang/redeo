@@ -23,6 +23,7 @@ const (
 	errInvalidMultiBulkLength = protoError("Protocol error: invalid multibulk length")
 	errInvalidBulkLength      = protoError("Protocol error: invalid bulk length")
 	errBlankBulkLength        = protoError("Protocol error: expected '$', got ' '")
+	errInlineRequestTooLong   = protoError("Protocol error: too big inline request")
 	errNotAnInteger           = protoError("Protocol error: expected an integer")
 	errNotANilMessage         = protoError("Protocol error: expected a nil")
 )
