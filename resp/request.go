@@ -59,30 +59,30 @@ func (r *RequestReader) readInlineCmd(cmd *Command) (*Command, error) {
 		return cmd, err
 	}
 
-	var name []byte
-
+	hasName := false
 	inWord := false
 	for _, c := range line.Trim() {
 		switch c {
 		case ' ', '\t':
 			inWord = false
 		default:
-			if !inWord && name != nil {
+			if !inWord && hasName {
 				cmd.argc++
 				cmd.grow(cmd.argc)
 			}
 			if pos := cmd.argc - 1; pos > -1 {
 				cmd.argv[pos] = append(cmd.argv[pos], c)
 			} else {
-				name = append(name, c)
+				hasName = true
+				cmd.name = append(cmd.name, c)
 			}
 			inWord = true
 		}
 	}
-	if name == nil {
+	if !hasName {
 		return r.ReadCmd(cmd)
 	}
-	cmd.Name = string(name)
+	cmd.Name = string(cmd.name)
 	return cmd, nil
 }
 

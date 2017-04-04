@@ -33,6 +33,7 @@ type Command struct {
 
 	argc int
 	argv []CommandArgument
+	name []byte
 
 	ctx context.Context
 }
@@ -75,7 +76,7 @@ func (c *Command) reset() {
 	for i, v := range argv {
 		argv[i] = v[:0]
 	}
-	*c = Command{argv: argv[:0]}
+	*c = Command{argv: argv[:0], name: c.name[:0]}
 }
 
 func (c *Command) grow(n int) {
