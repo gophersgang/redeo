@@ -49,6 +49,20 @@ func (r *RequestReader) ReadCmd(cmd *Command) (*Command, error) {
 	return r.readInlineCmd(cmd)
 }
 
+// SkipCmd skips the next command.
+func (r *RequestReader) SkipCmd() error {
+	c, err := r.r.PeekByte()
+	if err != nil {
+		return err
+	}
+
+	if c != '*' {
+		_, err = r.r.ReadLine()
+		return err
+	}
+	return r.skipMultiBulkCmd()
+}
+
 func (r *RequestReader) readInlineCmd(cmd *Command) (*Command, error) {
 	if cmd == nil {
 		cmd = new(Command)
@@ -101,19 +115,18 @@ func (r *RequestReader) readMultiBulkCmd(cmd *Command) (*Command, error) {
 	cmd.argc = sz - 1
 	cmd.grow(cmd.argc)
 
-	cmd.Name, err = r.r.ReadString()
+	cmd.Name, err = r.r.ReadBulkString()
 	if err != nil {
 		return cmd, err
 	}
 
 	for i := 0; i < cmd.argc; i++ {
-		bb, err := r.r.ReadBytes()
+		bb, err := r.r.ReadBulk()
 		if err != nil {
 			return cmd, err
 		}
 		cmd.argv[i] = append(cmd.argv[i], bb...)
 	}
-
 	return cmd, err
 }
 
@@ -155,6 +168,23 @@ func (r *RequestReader) peekMultiBulkCmd(offset int, line bufioLn) (string, erro
 
 	data, err := r.r.PeekN(offset, sz)
 	return string(data), err
+}
+
+func (r *RequestReader) skipMultiBulkCmd() error {
+	sz, err := r.r.ReadArrayLen()
+	if err != nil {
+		return err
+	}
+	if sz < 1 {
+		return r.SkipCmd()
+	}
+
+	for i := 0; i < sz; i++ {
+		if err := r.r.SkipBulk(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // --------------------------------------------------------------------

@@ -123,9 +123,9 @@ var _ = Describe("ResponseReader", func() {
 
 		t, err := subject.PeekType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(t).To(Equal(resp.TypeString))
+		Expect(t).To(Equal(resp.TypeBulk))
 
-		s, err := subject.ReadString()
+		s, err := subject.ReadBulkString()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(s).To(Equal("PING"))
 
@@ -140,9 +140,9 @@ var _ = Describe("ResponseReader", func() {
 
 		t, err := subject.PeekType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(t).To(Equal(resp.TypeString))
+		Expect(t).To(Equal(resp.TypeBulk))
 
-		s, err := subject.ReadBytes()
+		s, err := subject.ReadBulk()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(s).To(Equal([]byte("PiNG")))
 
@@ -200,9 +200,9 @@ var _ = Describe("ResponseReader", func() {
 		for i := 0; i < n; i++ {
 			t, err = subject.PeekType()
 			Expect(err).NotTo(HaveOccurred())
-			Expect(t).To(Equal(resp.TypeString))
+			Expect(t).To(Equal(resp.TypeBulk))
 
-			_, err = subject.ReadBytes()
+			_, err = subject.ReadBulk()
 			Expect(err).NotTo(HaveOccurred())
 		}
 

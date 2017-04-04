@@ -77,7 +77,7 @@ var _ = Describe("Server", func() {
 			cw.WriteCmdString("echo", strings.Repeat("x", 10000))
 			Expect(cw.Flush()).To(Succeed())
 
-			s, err = cr.ReadString()
+			s, err = cr.ReadBulkString()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(s)).To(Equal(10000))
 
@@ -187,6 +187,9 @@ var _ = Describe("Server", func() {
 			_, err := cn.Write([]byte("*x\r\n"))
 			Expect(err).NotTo(HaveOccurred())
 
+			x, _ := cr.PeekType()
+			Expect(x).To(Equal(resp.TypeError))
+
 			s, err := cr.ReadError()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("ERR Protocol error: invalid multibulk length"))
@@ -232,7 +235,25 @@ var _ = Describe("Server", func() {
 
 })
 
-func BenchmarkServer(b *testing.B) {
+// --------------------------------------------------------------------
+
+func BenchmarkServer_inline(b *testing.B) {
+	benchmarkServer(b, []byte(
+		"ECHO HELLO\r\n"+
+			"ECHO CRUEL\r\n"+
+			"ECHO WORLD\r\n",
+	), 24)
+}
+
+func BenchmarkServer_bulk(b *testing.B) {
+	benchmarkServer(b, []byte(
+		"*2\r\n$4\r\nECHO\r\n$5\r\nHELLO\r\n"+
+			"*2\r\n$4\r\nECHO\r\n$5\r\nCRUEL\r\n"+
+			"*2\r\n$4\r\nECHO\r\n$5\r\nWORLD\r\n",
+	), 24)
+}
+
+func benchmarkServer(b *testing.B, pipe []byte, expN int) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		b.Fatal(err)
@@ -240,8 +261,11 @@ func BenchmarkServer(b *testing.B) {
 	defer lis.Close()
 
 	srv := NewServer(nil)
-	srv.HandleFunc("ping", func(w resp.ResponseWriter, _ *resp.Command) {
-		w.AppendInlineString("PONG")
+	srv.HandleFunc("echo", func(w resp.ResponseWriter, cmd *resp.Command) {
+		if cmd.ArgN() != 1 {
+			w.AppendError(WrongNumberOfArgs(cmd.Name))
+		}
+		w.AppendInlineBytes(cmd.Arg(0))
 	})
 
 	go srv.Serve(lis)
@@ -253,7 +277,6 @@ func BenchmarkServer(b *testing.B) {
 	defer conn.Close()
 
 	buf := make([]byte, 1024)
-	pipe := []byte("PING\r\nPING\r\nPING\r\n")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -262,8 +285,8 @@ func BenchmarkServer(b *testing.B) {
 		}
 		if n, err := conn.Read(buf); err != nil {
 			b.Fatal(err)
-		} else if n != 21 {
-			b.Fatalf("expected response to be 21 bytes long, not %d", n)
+		} else if n != expN {
+			b.Fatalf("expected response to be %d bytes long, not %d: %q", expN, n)
 		}
 	}
 }

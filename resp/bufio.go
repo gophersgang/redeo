@@ -40,7 +40,7 @@ func (b *bufioR) PeekType() (t ResponseType, err error) {
 		if b.buf[b.r+1] == '-' {
 			t = TypeNil
 		} else {
-			t = TypeString
+			t = TypeBulk
 		}
 	case '+':
 		t = TypeStatus
@@ -95,7 +95,7 @@ func (b *bufioR) ReadArrayLen() (int, error) {
 	return line.ParseSize('*', errInvalidMultiBulkLength)
 }
 
-func (b *bufioR) ReadStringLen() (int, error) {
+func (b *bufioR) ReadBulkLen() (int, error) {
 	line, err := b.ReadLine()
 	if err != nil {
 		return 0, err
@@ -103,8 +103,8 @@ func (b *bufioR) ReadStringLen() (int, error) {
 	return line.ParseSize('$', errInvalidBulkLength)
 }
 
-func (b *bufioR) ReadBytes() ([]byte, error) {
-	sz, err := b.ReadStringLen()
+func (b *bufioR) ReadBulk() ([]byte, error) {
+	sz, err := b.ReadBulkLen()
 	if err != nil {
 		return nil, err
 	}
@@ -121,8 +121,8 @@ func (b *bufioR) ReadBytes() ([]byte, error) {
 	return bb, nil
 }
 
-func (b *bufioR) ReadString() (string, error) {
-	sz, err := b.ReadStringLen()
+func (b *bufioR) ReadBulkString() (string, error) {
+	sz, err := b.ReadBulkLen()
 	if err != nil {
 		return "", err
 	}
@@ -136,6 +136,43 @@ func (b *bufioR) ReadString() (string, error) {
 	b.r += sz
 	b.skip(2)
 	return s, nil
+}
+
+func (b *bufioR) SkipBulk() error {
+	sz, err := b.ReadBulkLen()
+	if err != nil {
+		return err
+	}
+
+	// if bulk doesn't overflow buffer
+	extra := sz - b.Buffered()
+	if extra < 1 {
+		b.r += sz
+		b.skip(2)
+		return nil
+	}
+
+	// otherwise, reset buffer ...
+	b.r = 0
+	b.w = 0
+
+	// ... and discard the extra bytes
+	x := extra + 2
+	r := io.LimitReader(b.rd, int64(x))
+	for {
+		n, err := r.Read(b.buf)
+		x -= n
+
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+	}
+	if x != 0 {
+		return io.EOF
+	}
+	return nil
 }
 
 func (b *bufioR) PeekN(offset, n int) ([]byte, error) {

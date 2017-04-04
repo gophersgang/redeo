@@ -7,7 +7,7 @@ vet:
 	go vet ./...
 
 bench:
-	go test ./... -run=NONE -bench=. -benchmem -benchtime=10s -memprofile mem.pprof
+	go test ./... -run=NONE -bench=. -benchmem -benchtime=5s
 
 # go get -u github.com/davelondon/rebecca/cmd/becca
 

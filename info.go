@@ -5,7 +5,6 @@ import (
 	"os"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -159,7 +158,7 @@ func (s *clientStats) Cmd(clientID uint64, cmd string) {
 	s.mu.Lock()
 	if info, ok := s.stats[clientID]; ok {
 		info.AccessTime = time.Now()
-		info.LastCmd = strings.ToLower(cmd)
+		info.LastCmd = cmd
 	}
 	s.mu.Unlock()
 }

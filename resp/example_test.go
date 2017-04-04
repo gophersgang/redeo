@@ -40,8 +40,8 @@ func Example_client() {
 		case resp.TypeStatus:
 			s, _ := r.ReadStatus()
 			fmt.Println(s)
-		case resp.TypeString:
-			s, _ := r.ReadString()
+		case resp.TypeBulk:
+			s, _ := r.ReadBulkString()
 			fmt.Println(s)
 		case resp.TypeInt:
 			n, _ := r.ReadInt()

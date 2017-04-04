@@ -50,7 +50,7 @@ type ResponseType uint8
 const (
 	TypeUnknown ResponseType = iota
 	TypeArray
-	TypeString
+	TypeBulk
 	TypeStatus
 	TypeError
 	TypeInt
@@ -64,10 +64,10 @@ type ResponseReader interface {
 	PeekType() (ResponseType, error)
 	// ReadNil reads a nil value
 	ReadNil() error
-	// ReadString reads a string value
-	ReadString() (string, error)
-	// ReadBytes reads a string value
-	ReadBytes() ([]byte, error)
+	// ReadBulkString reads a bulk and returns a string
+	ReadBulkString() (string, error)
+	// ReadBulk reads a bulk and returns bytes
+	ReadBulk() ([]byte, error)
 	// ReadInt reads an int value
 	ReadInt() (int64, error)
 	// ReadArrayLen reads the array length

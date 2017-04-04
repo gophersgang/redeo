@@ -170,7 +170,32 @@ var _ = Describe("RequestReader", func() {
 		Entry("blank multi-bulks",
 			"*0\r\nPING\r\n", "PING"),
 		Entry("multi-bulks",
-			"*1\r\n$4\r\nPING\r\n", "PING"),
+			"*2\r\n$4\r\nECHO\r\n$4\r\nmore\r\n", "ECHO"),
+		Entry("large multi-bulks",
+			"*2\r\n$4\r\nECHO\r\n$100000\r\n"+strings.Repeat("x", 100000)+"\r\n", "ECHO"),
+	)
+
+	DescribeTable("should skip commands",
+		func(s string) {
+			r := setup(s + "QUIT\r\n")
+			err := r.SkipCmd()
+			Expect(err).NotTo(HaveOccurred())
+
+			cmd, err := r.ReadCmd(nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cmd.Name).To(Equal("QUIT"))
+		},
+
+		Entry("inline requests",
+			"PING\r\n"),
+		Entry("multiple inline requests with args",
+			"  ECHO HELLO  \r\n"),
+		Entry("blank multi-bulks",
+			"*0\r\nPING\r\n"),
+		Entry("multi-bulks",
+			"*2\r\n$4\r\nECHO\r\n$4\r\nmore\r\n"),
+		Entry("large multi-bulks",
+			"*2\r\n$4\r\nECHO\r\n$100000\r\n"+strings.Repeat("x", 100000)+"\r\n"),
 	)
 
 })

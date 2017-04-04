@@ -61,14 +61,18 @@ func (c *Client) Close() {
 	c.closed = true
 }
 
-func (c *Client) eachCommand(fn func(*resp.Command) error) (err error) {
-	for more := true; more && err == nil; more = c.rd.Buffered() != 0 {
-		if c.cmd, err = c.rd.ReadCmd(c.cmd); err != nil {
-			return
+func (c *Client) pipeline(fn func(string) error) error {
+	for more := true; more; more = c.rd.Buffered() != 0 {
+		name, err := c.rd.PeekCmd()
+		if err != nil {
+			_ = c.rd.SkipCmd()
+			return err
 		}
-		err = fn(c.cmd)
+		if err := fn(name); err != nil {
+			return err
+		}
 	}
-	return
+	return nil
 }
 
 func (c *Client) release() {

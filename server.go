@@ -71,6 +71,11 @@ func (srv *Server) serveClient(c *Client) {
 	srv.info.register(c)
 	defer srv.info.deregister(c.id)
 
+	// Create perform callback
+	perform := func(name string) error {
+		return srv.perform(c, name)
+	}
+
 	// Init request/response loop
 	for !c.closed {
 		// set deadline
@@ -79,14 +84,7 @@ func (srv *Server) serveClient(c *Client) {
 		}
 
 		// perform pipeline
-		if err := c.eachCommand(func(cmd *resp.Command) error {
-			srv.perform(c, cmd)
-
-			if n := c.wr.Buffered(); n >= resp.MaxBufferSize {
-				return c.wr.Flush()
-			}
-			return nil
-		}); err != nil {
+		if err := c.pipeline(perform); err != nil {
 			c.wr.AppendError("ERR " + err.Error())
 
 			if !resp.IsProtocolError(err) {
@@ -102,17 +100,31 @@ func (srv *Server) serveClient(c *Client) {
 	}
 }
 
-func (srv *Server) perform(c *Client, cmd *resp.Command) {
+func (srv *Server) perform(c *Client, name string) (err error) {
+	norm := strings.ToLower(name)
+
 	// find handler
-	handler, ok := srv.commands[strings.ToLower(cmd.Name)]
+	handler, ok := srv.commands[norm]
 	if !ok {
-		c.wr.AppendError(UnknownCommand(cmd.Name))
+		c.wr.AppendError(UnknownCommand(name))
+		_ = c.rd.SkipCmd()
 		return
 	}
 
 	// register call
-	srv.info.command(c.id, cmd.Name)
+	srv.info.command(c.id, norm)
+
+	// read command
+	if c.cmd, err = c.rd.ReadCmd(c.cmd); err != nil {
+		return
+	}
 
 	// serve command
-	handler.ServeRedeo(c.wr, cmd)
+	handler.ServeRedeo(c.wr, c.cmd)
+
+	// flush when buffer is large enough
+	if n := c.wr.Buffered(); n > resp.MaxBufferSize/2 {
+		err = c.wr.Flush()
+	}
+	return
 }

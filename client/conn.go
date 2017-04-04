@@ -14,10 +14,10 @@ type Conn interface {
 	PeekType() (resp.ResponseType, error)
 	// ReadNil reads a nil value
 	ReadNil() error
-	// ReadString reads a string value
-	ReadString() (string, error)
-	// ReadBytes reads a string value
-	ReadBytes() ([]byte, error)
+	// ReadBulk reads a bulk value
+	ReadBulk() ([]byte, error)
+	// ReadBulkString reads a bulk value as string
+	ReadBulkString() (string, error)
 	// ReadInt reads an int value
 	ReadInt() (int64, error)
 	// ReadArrayLen reads the array length
