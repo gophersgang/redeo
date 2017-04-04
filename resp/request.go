@@ -166,7 +166,7 @@ func (r *RequestReader) peekMultiBulkCmd(offset int, line bufioLn) (string, erro
 		return "", err
 	}
 
-	data, err := r.r.PeekN(offset, sz)
+	data, err := r.r.PeekN(offset, int(sz))
 	return string(data), err
 }
 
@@ -220,9 +220,9 @@ func (w *RequestWriter) Flush() error {
 // you must call Flush.
 func (w *RequestWriter) WriteCmd(cmd string, args ...[]byte) {
 	w.w.AppendArrayLen(len(args) + 1)
-	w.w.AppendString(cmd)
+	w.w.AppendBulkString(cmd)
 	for _, arg := range args {
-		w.w.AppendBytes(arg)
+		w.w.AppendBulk(arg)
 	}
 }
 
@@ -230,9 +230,9 @@ func (w *RequestWriter) WriteCmd(cmd string, args ...[]byte) {
 // you must call Flush.
 func (w *RequestWriter) WriteCmdString(cmd string, args ...string) {
 	w.w.AppendArrayLen(len(args) + 1)
-	w.w.AppendString(cmd)
+	w.w.AppendBulkString(cmd)
 	for _, arg := range args {
-		w.w.AppendString(arg)
+		w.w.AppendBulkString(arg)
 	}
 }
 
@@ -249,17 +249,17 @@ func (w *RequestWriter) WriteMultiBulkSize(n int) error {
 // WriteBulk is a low-level method to write a bulk.
 // For normal operation, use WriteCmd or WriteCmdString.
 func (w *RequestWriter) WriteBulk(b []byte) {
-	w.w.AppendBytes(b)
+	w.w.AppendBulk(b)
 }
 
 // WriteBulkString is a low-level method to write a bulk.
 // For normal operation, use WriteCmd or WriteCmdString.
 func (w *RequestWriter) WriteBulkString(s string) {
-	w.w.AppendString(s)
+	w.w.AppendBulkString(s)
 }
 
-// WriteFromN is a low-level method to copy a large bulk of data directly to the writer.
+// CopyBulk is a low-level method to copy a large bulk of data directly to the writer.
 // For normal operation, use WriteCmd or WriteCmdString.
-func (w *RequestWriter) WriteFromN(r io.Reader, n int) error {
-	return w.w.WriteFromN(r, n)
+func (w *RequestWriter) CopyBulk(r io.Reader, n int64) error {
+	return w.w.CopyBulk(r, n)
 }

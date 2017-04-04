@@ -97,8 +97,8 @@ func ExampleResponseWriter() {
 
 	// Append an array
 	w.AppendArrayLen(3)
-	w.AppendString("Adam")
-	w.AppendString("Had'em")
+	w.AppendBulkString("Adam")
+	w.AppendBulkString("Had'em")
 	w.AppendNil()
 
 	// Writer data must be flushed manually
@@ -118,11 +118,11 @@ func ExampleResponseWriter() {
 	// "+OK\r\n:33\r\n*3\r\n$4\r\nAdam\r\n$6\r\nHad'em\r\n$-1\r\n"
 }
 
-func ExampleResponseWriter_AppendString() {
+func ExampleResponseWriter_AppendBulkString() {
 	b := new(bytes.Buffer)
 	w := resp.NewResponseWriter(b)
 
-	w.AppendString("PONG")
+	w.AppendBulkString("PONG")
 	w.Flush()
 	fmt.Printf("%q\n", b.String())
 
@@ -171,9 +171,9 @@ func ExampleResponseWriter_AppendArrayLen() {
 	w := resp.NewResponseWriter(b)
 
 	w.AppendArrayLen(3)
-	w.AppendString("item 1")
+	w.AppendBulkString("item 1")
 	w.AppendNil()
-	w.AppendString("item 2")
+	w.AppendBulkString("item 2")
 	w.Flush()
 	fmt.Printf("%q\n", b.String())
 
@@ -181,11 +181,11 @@ func ExampleResponseWriter_AppendArrayLen() {
 	// "*3\r\n$6\r\nitem 1\r\n$-1\r\n$6\r\nitem 2\r\n"
 }
 
-func ExampleResponseWriter_WriteFromN() {
+func ExampleResponseWriter_CopyBulk() {
 	b := new(bytes.Buffer)
 	w := resp.NewResponseWriter(b)
 
-	w.WriteFromN(strings.NewReader("a streamer"), 8)
+	w.CopyBulk(strings.NewReader("a streamer"), 8)
 	w.Flush()
 	fmt.Printf("%q\n", b.String())
 
@@ -193,13 +193,13 @@ func ExampleResponseWriter_WriteFromN() {
 	// "$8\r\na stream\r\n"
 }
 
-func ExampleResponseWriter_WriteFromN_in_array() {
+func ExampleResponseWriter_CopyBulk_in_array() {
 	b := new(bytes.Buffer)
 	w := resp.NewResponseWriter(b)
 
 	w.AppendArrayLen(2)
-	w.AppendString("item 1")
-	w.WriteFromN(strings.NewReader("item 2"), 6)
+	w.AppendBulkString("item 1")
+	w.CopyBulk(strings.NewReader("item 2"), 6)
 	w.Flush()
 	fmt.Printf("%q\n", b.String())
 

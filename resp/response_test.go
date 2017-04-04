@@ -18,26 +18,26 @@ var _ = Describe("ResponseWriter", func() {
 		subject = resp.NewResponseWriter(buf)
 	})
 
-	It("should append bytes", func() {
-		subject.AppendBytes([]byte("dAtA"))
+	It("should append bulks", func() {
+		subject.AppendBulk([]byte("dAtA"))
 		Expect(buf.String()).To(BeEmpty())
 		Expect(subject.Flush()).To(Succeed())
 		Expect(buf.String()).To(Equal("$4\r\ndAtA\r\n"))
 	})
 
-	It("should append strings", func() {
-		subject.AppendString("PONG")
+	It("should append bulk strings", func() {
+		subject.AppendBulkString("PONG")
 		Expect(buf.String()).To(BeEmpty())
 		Expect(subject.Flush()).To(Succeed())
 		Expect(buf.String()).To(Equal("$4\r\nPONG\r\n"))
 
-		subject.AppendString("日本")
+		subject.AppendBulkString("日本")
 		Expect(subject.Flush()).To(Succeed())
 		Expect(buf.String()).To(Equal("$4\r\nPONG\r\n$6\r\n日本\r\n"))
 	})
 
 	It("should append inline bytes", func() {
-		subject.AppendInlineBytes([]byte("dAtA"))
+		subject.AppendInline([]byte("dAtA"))
 		Expect(buf.String()).To(BeEmpty())
 		Expect(subject.Flush()).To(Succeed())
 		Expect(buf.String()).To(Equal("+dAtA\r\n"))
@@ -83,10 +83,10 @@ var _ = Describe("ResponseWriter", func() {
 	})
 
 	It("should copy from readers", func() {
-		rd := strings.NewReader("this is a streaming data source")
+		src := strings.NewReader("this is a streaming data source")
 		subject.AppendArrayLen(1)
 		Expect(buf.String()).To(BeEmpty())
-		Expect(subject.WriteFromN(rd, 16)).To(Succeed())
+		Expect(subject.CopyBulk(src, 16)).To(Succeed())
 		Expect(subject.Flush()).To(Succeed())
 		Expect(buf.String()).To(Equal("*1\r\n$16\r\nthis is a stream\r\n"))
 	})

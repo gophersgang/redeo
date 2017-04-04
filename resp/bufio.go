@@ -92,10 +92,14 @@ func (b *bufioR) ReadArrayLen() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return line.ParseSize('*', errInvalidMultiBulkLength)
+	sz, err := line.ParseSize('*', errInvalidMultiBulkLength)
+	if err != nil {
+		return 0, err
+	}
+	return int(sz), nil
 }
 
-func (b *bufioR) ReadBulkLen() (int, error) {
+func (b *bufioR) ReadBulkLen() (int64, error) {
 	line, err := b.ReadLine()
 	if err != nil {
 		return 0, err
@@ -109,14 +113,14 @@ func (b *bufioR) ReadBulk() ([]byte, error) {
 		return nil, err
 	}
 
-	if err := b.require(sz); err != nil {
+	if err := b.require(int(sz)); err != nil {
 		return nil, err
 	}
 
-	bb := make([]byte, sz)
-	copy(bb, b.buf[b.r:b.r+sz])
+	bb := make([]byte, int(sz))
+	copy(bb, b.buf[b.r:b.r+int(sz)])
 
-	b.r += sz
+	b.r += int(sz)
 	b.skip(2)
 	return bb, nil
 }
@@ -127,13 +131,13 @@ func (b *bufioR) ReadBulkString() (string, error) {
 		return "", err
 	}
 
-	if err := b.require(sz); err != nil {
+	if err := b.require(int(sz)); err != nil {
 		return "", err
 	}
 
-	s := string(b.buf[b.r : b.r+sz])
+	s := string(b.buf[b.r : b.r+int(sz)])
 
-	b.r += sz
+	b.r += int(sz)
 	b.skip(2)
 	return s, nil
 }
@@ -145,9 +149,9 @@ func (b *bufioR) SkipBulk() error {
 	}
 
 	// if bulk doesn't overflow buffer
-	extra := sz - b.Buffered()
+	extra := sz - int64(b.Buffered())
 	if extra < 1 {
-		b.r += sz
+		b.r += int(sz)
 		b.skip(2)
 		return nil
 	}
@@ -158,10 +162,10 @@ func (b *bufioR) SkipBulk() error {
 
 	// ... and discard the extra bytes
 	x := extra + 2
-	r := io.LimitReader(b.rd, int64(x))
+	r := io.LimitReader(b.rd, x)
 	for {
 		n, err := r.Read(b.buf)
-		x -= n
+		x -= int64(n)
 
 		if err == io.EOF {
 			break
@@ -349,7 +353,7 @@ func (ln bufioLn) ParseMessage(prefix byte) (string, error) {
 }
 
 // ParseSize parses a size with prefix
-func (ln bufioLn) ParseSize(prefix byte, fallback error) (int, error) {
+func (ln bufioLn) ParseSize(prefix byte, fallback error) (int64, error) {
 	data := ln.Trim()
 
 	if len(data) == 0 {
@@ -360,10 +364,10 @@ func (ln bufioLn) ParseSize(prefix byte, fallback error) (int, error) {
 		return 0, fallback
 	}
 
-	n := 0
+	var n int64
 	for _, c := range data[1:] {
 		if c >= '0' && c <= '9' {
-			n = n*10 + int(c-'0')
+			n = n*10 + int64(c-'0')
 		} else {
 			return 0, fallback
 		}
@@ -388,25 +392,25 @@ func (b *bufioW) Buffered() int {
 
 // AppendArrayLen appends an array header to the output buffer
 func (b *bufioW) AppendArrayLen(n int) {
-	b.appendSize('*', n)
+	b.appendSize('*', int64(n))
 }
 
-// AppendBytes appends bulk bytes to the output buffer
-func (b *bufioW) AppendBytes(p []byte) {
-	b.appendSize('$', len(p))
+// AppendBulk appends bulk bytes to the output buffer
+func (b *bufioW) AppendBulk(p []byte) {
+	b.appendSize('$', int64(len(p)))
 	b.buf = append(b.buf, p...)
 	b.buf = append(b.buf, binCRLF...)
 }
 
-// AppendString appends a bulk string to the output buffer
-func (b *bufioW) AppendString(s string) {
-	b.appendSize('$', len(s))
+// AppendBulkString appends a bulk string to the output buffer
+func (b *bufioW) AppendBulkString(s string) {
+	b.appendSize('$', int64(len(s)))
 	b.buf = append(b.buf, s...)
 	b.buf = append(b.buf, binCRLF...)
 }
 
-// AppendInlineBytes appends inline bytes to the output buffer
-func (b *bufioW) AppendInlineBytes(p []byte) {
+// AppendInline appends inline bytes to the output buffer
+func (b *bufioW) AppendInline(p []byte) {
 	b.buf = append(b.buf, '+')
 	b.buf = append(b.buf, p...)
 	b.buf = append(b.buf, binCRLF...)
@@ -450,13 +454,13 @@ func (b *bufioW) AppendOK() {
 	b.buf = append(b.buf, binOK...)
 }
 
-// WriteFromN flushes the existing buffer and read n bytes from the reader directly to
+// CopyBulk flushes the existing buffer and read n bytes from the reader directly to
 // the client connection.
-func (b *bufioW) WriteFromN(r io.Reader, n int) error {
+func (b *bufioW) CopyBulk(src io.Reader, n int64) error {
 	b.appendSize('$', n)
-	if start := len(b.buf); cap(b.buf)-start >= n+2 {
-		b.buf = b.buf[:start+n]
-		if _, err := io.ReadFull(r, b.buf[start:]); err != nil {
+	if start := len(b.buf); int64(cap(b.buf)-start) >= n+2 {
+		b.buf = b.buf[:start+int(n)]
+		if _, err := io.ReadFull(src, b.buf[start:]); err != nil {
 			return err
 		}
 
@@ -468,7 +472,7 @@ func (b *bufioW) WriteFromN(r io.Reader, n int) error {
 		return err
 	}
 	b.buf = b.buf[:cap(b.buf)]
-	_, err := io.CopyBuffer(b.wr, io.LimitReader(r, int64(n)), b.buf)
+	_, err := io.CopyBuffer(b.wr, io.LimitReader(src, int64(n)), b.buf)
 	b.buf = b.buf[:0]
 	if err != nil {
 		return err
@@ -497,9 +501,9 @@ func (b *bufioW) Reset(w io.Writer) {
 	b.reset(b.buf, w)
 }
 
-func (b *bufioW) appendSize(c byte, n int) {
+func (b *bufioW) appendSize(c byte, n int64) {
 	b.buf = append(b.buf, c)
-	b.buf = append(b.buf, strconv.Itoa(n)...)
+	b.buf = append(b.buf, strconv.FormatInt(n, 10)...)
 	b.buf = append(b.buf, binCRLF...)
 }
 

@@ -251,7 +251,7 @@ var _ = Describe("RequestWriter", func() {
 	)
 
 	It("should allow to buffer arguments from readers", func() {
-		rd := bytes.NewBufferString("this is a stream of data")
+		src := bytes.NewBufferString("this is a stream of data")
 		w := setup()
 		Expect(w.WriteMultiBulkSize(3)).To(Succeed())
 		w.WriteBulkString("PUT")
@@ -259,7 +259,7 @@ var _ = Describe("RequestWriter", func() {
 		Expect(w.Buffered()).To(Equal(22))
 		Expect(buf.Len()).To(Equal(0))
 
-		Expect(w.WriteFromN(rd, 12)).To(Succeed())
+		Expect(w.CopyBulk(src, 12)).To(Succeed())
 		Expect(w.Buffered()).To(Equal(41))
 		Expect(buf.Len()).To(Equal(0))
 
@@ -270,7 +270,7 @@ var _ = Describe("RequestWriter", func() {
 	})
 
 	It("should copy oversize arguments directly from reader", func() {
-		rd := bytes.NewBufferString(strings.Repeat("x", 100000))
+		src := bytes.NewBufferString(strings.Repeat("x", 100000))
 		w := setup()
 		Expect(w.WriteMultiBulkSize(3)).To(Succeed())
 		w.WriteBulkString("PUT")
@@ -278,7 +278,7 @@ var _ = Describe("RequestWriter", func() {
 		Expect(w.Buffered()).To(Equal(22))
 		Expect(buf.Len()).To(Equal(0))
 
-		Expect(w.WriteFromN(rd, 80000)).To(Succeed())
+		Expect(w.CopyBulk(src, 80000)).To(Succeed())
 		Expect(w.Buffered()).To(Equal(2))
 		Expect(buf.Len()).To(Equal(80030))
 		Expect(w.Flush()).To(Succeed())

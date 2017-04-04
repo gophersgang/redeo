@@ -7,12 +7,12 @@ import "io"
 type ResponseWriter interface {
 	// AppendArrayLen appends an array header to the output buffer.
 	AppendArrayLen(n int)
-	// AppendBytes appends bulk bytes to the output buffer.
-	AppendBytes(p []byte)
-	// AppendString appends a bulk string to the output buffer.
-	AppendString(s string)
-	// AppendInlineBytes appends inline bytes to the output buffer.
-	AppendInlineBytes(p []byte)
+	// AppendBulk appends bulk bytes to the output buffer.
+	AppendBulk(p []byte)
+	// AppendBulkString appends a bulk string to the output buffer.
+	AppendBulkString(s string)
+	// AppendInline appends inline bytes to the output buffer.
+	AppendInline(p []byte)
 	// AppendInlineString appends an inline string to the output buffer.
 	AppendInlineString(s string)
 	// AppendError appends an error message to the output buffer.
@@ -23,9 +23,9 @@ type ResponseWriter interface {
 	AppendNil()
 	// AppendOK appends "OK" to the output buffer.
 	AppendOK()
-	// WriteFromN reads n bytes from a reader.
+	// CopyBulk copies n bytes from a reader.
 	// This call may flush pending buffer to prevent overflows.
-	WriteFromN(io.Reader, int) error
+	CopyBulk(src io.Reader, n int64) error
 	// Buffered returns the number of pending bytes.
 	Buffered() int
 	// Flush flushes pending buffer.

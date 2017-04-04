@@ -21,7 +21,7 @@ var _ = Describe("Server", func() {
 				w.AppendError(WrongNumberOfArgs(cmd.Name))
 				return
 			}
-			w.AppendBytes(cmd.Arg(0))
+			w.AppendBulk(cmd.Arg(0))
 		}
 		flush = func(w resp.ResponseWriter, _ *resp.Command) {
 			w.AppendOK()
@@ -265,7 +265,7 @@ func benchmarkServer(b *testing.B, pipe []byte, expN int) {
 		if cmd.ArgN() != 1 {
 			w.AppendError(WrongNumberOfArgs(cmd.Name))
 		}
-		w.AppendInlineBytes(cmd.Arg(0))
+		w.AppendInline(cmd.Arg(0))
 	})
 
 	go srv.Serve(lis)

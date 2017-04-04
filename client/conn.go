@@ -41,9 +41,9 @@ type Conn interface {
 	// WriteBulkString is a low-level method to write a bulk.
 	// For normal operation, use WriteCmd or WriteCmdString.
 	WriteBulkString(s string)
-	// WriteFromN is a low-level method to copy a large bulk of data directly to the writer.
+	// CopyBulk is a low-level method to copy a large bulk of data directly to the writer.
 	// For normal operation, use WriteCmd or WriteCmdString.
-	WriteFromN(r io.Reader, n int) error
+	CopyBulk(src io.Reader, n int64) error
 	// Flush flushes the output buffer. Call this after you have completed your pipeline
 	Flush() error
 
