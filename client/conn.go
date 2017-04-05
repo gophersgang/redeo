@@ -14,8 +14,8 @@ type Conn interface {
 	PeekType() (resp.ResponseType, error)
 	// ReadNil reads a nil value
 	ReadNil() error
-	// ReadBulk reads a bulk value
-	ReadBulk() ([]byte, error)
+	// ReadBulk reads a bulk value (optionally appending it to a passed p buffer)
+	ReadBulk(p []byte) ([]byte, error)
 	// ReadBulkString reads a bulk value as string
 	ReadBulkString() (string, error)
 	// ReadInt reads an int value

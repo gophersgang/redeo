@@ -107,22 +107,21 @@ func (b *bufioR) ReadBulkLen() (int64, error) {
 	return line.ParseSize('$', errInvalidBulkLength)
 }
 
-func (b *bufioR) ReadBulk() ([]byte, error) {
+func (b *bufioR) ReadBulk(p []byte) ([]byte, error) {
 	sz, err := b.ReadBulkLen()
 	if err != nil {
-		return nil, err
+		return p, err
 	}
 
 	if err := b.require(int(sz)); err != nil {
-		return nil, err
+		return p, err
 	}
 
-	bb := make([]byte, int(sz))
-	copy(bb, b.buf[b.r:b.r+int(sz)])
+	p = append(p, b.buf[b.r:b.r+int(sz)]...)
 
 	b.r += int(sz)
 	b.skip(2)
-	return bb, nil
+	return p, nil
 }
 
 func (b *bufioR) ReadBulkString() (string, error) {

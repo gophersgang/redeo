@@ -66,8 +66,8 @@ type ResponseReader interface {
 	ReadNil() error
 	// ReadBulkString reads a bulk and returns a string
 	ReadBulkString() (string, error)
-	// ReadBulk reads a bulk and returns bytes
-	ReadBulk() ([]byte, error)
+	// ReadBulk reads a bulk and returns bytes (optionally appending to a passed p buffer)
+	ReadBulk(p []byte) ([]byte, error)
 	// ReadInt reads an int value
 	ReadInt() (int64, error)
 	// ReadArrayLen reads the array length

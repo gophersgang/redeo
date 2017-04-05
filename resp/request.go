@@ -34,20 +34,28 @@ func (r *RequestReader) PeekCmd() (string, error) {
 
 // ReadCmd reads the next command. It optionally recycles the cmd passed.
 func (r *RequestReader) ReadCmd(cmd *Command) (*Command, error) {
-	if cmd != nil {
+	if cmd == nil {
+		cmd = new(Command)
+	} else {
 		cmd.reset()
 	}
 
-	c, err := r.r.PeekByte()
-	if err != nil {
-		return cmd, err
-	}
-
-	if c == '*' {
-		return r.readMultiBulkCmd(cmd)
-	}
-	return r.readInlineCmd(cmd)
+	err := cmd.parse(r.r)
+	return cmd, err
 }
+
+// StreamCmd reads the next command as a stream.
+// func (r *RequestReader) StreamCmd() (*CommandStream, error) {
+// 	c, err := r.r.PeekByte()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	if c == '*' {
+// 		return r.readMultiBulkCmd(cmd)
+// 	}
+// 	return nil, nil
+// }
 
 // SkipCmd skips the next command.
 func (r *RequestReader) SkipCmd() error {
@@ -60,74 +68,21 @@ func (r *RequestReader) SkipCmd() error {
 		_, err = r.r.ReadLine()
 		return err
 	}
-	return r.skipMultiBulkCmd()
-}
 
-func (r *RequestReader) readInlineCmd(cmd *Command) (*Command, error) {
-	if cmd == nil {
-		cmd = new(Command)
-	}
-
-	line, err := r.r.ReadLine()
+	n, err := r.r.ReadArrayLen()
 	if err != nil {
-		return cmd, err
+		return err
+	}
+	if n < 1 {
+		return r.SkipCmd()
 	}
 
-	hasName := false
-	inWord := false
-	for _, c := range line.Trim() {
-		switch c {
-		case ' ', '\t':
-			inWord = false
-		default:
-			if !inWord && hasName {
-				cmd.argc++
-				cmd.grow(cmd.argc)
-			}
-			if pos := cmd.argc - 1; pos > -1 {
-				cmd.argv[pos] = append(cmd.argv[pos], c)
-			} else {
-				hasName = true
-				cmd.name = append(cmd.name, c)
-			}
-			inWord = true
+	for i := 0; i < n; i++ {
+		if err := r.r.SkipBulk(); err != nil {
+			return err
 		}
 	}
-	if !hasName {
-		return r.ReadCmd(cmd)
-	}
-	cmd.Name = string(cmd.name)
-	return cmd, nil
-}
-
-func (r *RequestReader) readMultiBulkCmd(cmd *Command) (*Command, error) {
-	sz, err := r.r.ReadArrayLen()
-	if err != nil {
-		return cmd, err
-	}
-	if sz < 1 {
-		return r.ReadCmd(cmd)
-	}
-
-	if cmd == nil {
-		cmd = new(Command)
-	}
-	cmd.argc = sz - 1
-	cmd.grow(cmd.argc)
-
-	cmd.Name, err = r.r.ReadBulkString()
-	if err != nil {
-		return cmd, err
-	}
-
-	for i := 0; i < cmd.argc; i++ {
-		bb, err := r.r.ReadBulk()
-		if err != nil {
-			return cmd, err
-		}
-		cmd.argv[i] = append(cmd.argv[i], bb...)
-	}
-	return cmd, err
+	return nil
 }
 
 func (r *RequestReader) peekCmd(offset int) (string, error) {
@@ -139,19 +94,16 @@ func (r *RequestReader) peekCmd(offset int) (string, error) {
 
 	if len(line) == 0 {
 		return "", nil
-	} else if line[0] == '*' {
-		return r.peekMultiBulkCmd(offset, line)
+	} else if line[0] != '*' {
+		return line.FirstWord(), nil
 	}
-	return line.FirstWord(), nil
-}
 
-func (r *RequestReader) peekMultiBulkCmd(offset int, line bufioLn) (string, error) {
-	sz, err := line.ParseSize('*', errInvalidMultiBulkLength)
+	n, err := line.ParseSize('*', errInvalidMultiBulkLength)
 	if err != nil {
 		return "", err
 	}
 
-	if sz < 1 {
+	if n < 1 {
 		return r.peekCmd(offset)
 	}
 
@@ -161,30 +113,13 @@ func (r *RequestReader) peekMultiBulkCmd(offset int, line bufioLn) (string, erro
 	}
 	offset += len(line)
 
-	sz, err = line.ParseSize('$', errInvalidBulkLength)
+	n, err = line.ParseSize('$', errInvalidBulkLength)
 	if err != nil {
 		return "", err
 	}
 
-	data, err := r.r.PeekN(offset, int(sz))
+	data, err := r.r.PeekN(offset, int(n))
 	return string(data), err
-}
-
-func (r *RequestReader) skipMultiBulkCmd() error {
-	sz, err := r.r.ReadArrayLen()
-	if err != nil {
-		return err
-	}
-	if sz < 1 {
-		return r.SkipCmd()
-	}
-
-	for i := 0; i < sz; i++ {
-		if err := r.r.SkipBulk(); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // --------------------------------------------------------------------

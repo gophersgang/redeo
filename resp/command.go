@@ -26,21 +26,12 @@ func (c CommandArgument) Int() (int64, error) {
 
 // --------------------------------------------------------------------
 
-// Command instances are read by a RequestReader
+// Command instances are parsed by a RequestReader
 type Command struct {
 	// Name refers to the command name
 	Name string
 
-	argc int
-	argv []CommandArgument
-	name []byte
-
-	ctx context.Context
-}
-
-// ArgN returns the number of command arguments
-func (c *Command) ArgN() int {
-	return c.argc
+	baseCmd
 }
 
 // Arg returns the command argument at position i
@@ -52,12 +43,117 @@ func (c *Command) Arg(i int) CommandArgument {
 }
 
 // Args returns all command argument values
-func (c *Command) Args() []CommandArgument {
-	return c.argv
+func (c *Command) Args() []CommandArgument { return c.argv }
+
+func (c *Command) reset() {
+	c.baseCmd.reset()
+	*c = Command{baseCmd: c.baseCmd}
+}
+
+func (c *Command) parse(r *bufioR) error {
+	x, err := r.PeekByte()
+	if err != nil {
+		return err
+	}
+
+	if x == '*' {
+		err = c.parseMultiBulk(r)
+	} else {
+		err = c.parseInline(r)
+	}
+	if err != nil {
+		return err
+	}
+
+	c.Name = string(c.name)
+	return nil
+}
+
+func (c *Command) parseMultiBulk(r *bufioR) error {
+	n, err := r.ReadArrayLen()
+	if err != nil {
+		return err
+	}
+	if n < 1 {
+		return c.parse(r)
+	}
+
+	c.argc = n - 1
+	c.grow(c.argc)
+
+	c.name, err = r.ReadBulk(c.name)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < c.argc; i++ {
+		c.argv[i], err = r.ReadBulk(c.argv[i])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Command) parseInline(r *bufioR) error {
+	line, err := r.ReadLine()
+	if err != nil {
+		return err
+	}
+
+	hasName := false
+	inWord := false
+	for _, x := range line.Trim() {
+		switch x {
+		case ' ', '\t':
+			inWord = false
+		default:
+			if !inWord && hasName {
+				c.argc++
+				c.grow(c.argc)
+			}
+			if pos := c.argc - 1; pos > -1 {
+				c.argv[pos] = append(c.argv[pos], x)
+			} else {
+				hasName = true
+				c.name = append(c.name, x)
+			}
+			inWord = true
+		}
+	}
+	if !hasName {
+		return c.parse(r)
+	}
+	return nil
+}
+
+// --------------------------------------------------------------------
+
+// CommandStream instances are created by a RequestReader
+type CommandStream struct {
+	// Name refers to the command name
+	Name string
+
+	baseCmd
+}
+
+// --------------------------------------------------------------------
+
+type baseCmd struct {
+	argc int
+	argv []CommandArgument
+	name []byte
+
+	ctx context.Context
+}
+
+// ArgN returns the number of command arguments
+func (c *baseCmd) ArgN() int {
+	return c.argc
 }
 
 // Context returns the context
-func (c *Command) Context() context.Context {
+func (c *baseCmd) Context() context.Context {
 	if c.ctx != nil {
 		return c.ctx
 	}
@@ -65,21 +161,13 @@ func (c *Command) Context() context.Context {
 }
 
 // SetContext sets the request context.
-func (c *Command) SetContext(ctx context.Context) {
+func (c *baseCmd) SetContext(ctx context.Context) {
 	if ctx != nil {
 		c.ctx = ctx
 	}
 }
 
-func (c *Command) reset() {
-	argv := c.argv
-	for i, v := range argv {
-		argv[i] = v[:0]
-	}
-	*c = Command{argv: argv[:0], name: c.name[:0]}
-}
-
-func (c *Command) grow(n int) {
+func (c *baseCmd) grow(n int) {
 	if d := n - cap(c.argv); d > 0 {
 		c.argv = c.argv[:cap(c.argv)]
 		c.argv = append(c.argv, make([]CommandArgument, d)...)
@@ -88,36 +176,13 @@ func (c *Command) grow(n int) {
 	}
 }
 
-// --------------------------------------------------------------------
-
-// CommandStream instances are commands where the arguments are not
-// automatically parsed but can be consumed as a stream.
-type CommandStream struct {
-	// Name refers to the command name
-	Name string
-
-	argc int
-	ctx  context.Context
-
-	r *bufioR
-}
-
-// ArgN returns the number of command arguments
-func (c *CommandStream) ArgN() int {
-	return c.argc
-}
-
-// Context returns the context
-func (c *CommandStream) Context() context.Context {
-	if c.ctx != nil {
-		return c.ctx
+func (c *baseCmd) reset() {
+	argv := c.argv
+	for i, v := range argv {
+		argv[i] = v[:0]
 	}
-	return context.Background()
-}
-
-// SetContext sets the request context.
-func (c *CommandStream) SetContext(ctx context.Context) {
-	if ctx != nil {
-		c.ctx = ctx
+	*c = baseCmd{
+		argv: argv[:0],
+		name: c.name[:0],
 	}
 }

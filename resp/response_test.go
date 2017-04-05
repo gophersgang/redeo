@@ -142,7 +142,7 @@ var _ = Describe("ResponseReader", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(t).To(Equal(resp.TypeBulk))
 
-		s, err := subject.ReadBulk()
+		s, err := subject.ReadBulk(nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(s).To(Equal([]byte("PiNG")))
 
@@ -202,7 +202,7 @@ var _ = Describe("ResponseReader", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(t).To(Equal(resp.TypeBulk))
 
-			_, err = subject.ReadBulk()
+			_, err = subject.ReadBulk(nil)
 			Expect(err).NotTo(HaveOccurred())
 		}
 
