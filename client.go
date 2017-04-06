@@ -24,8 +24,10 @@ type Client struct {
 	wr resp.ResponseWriter
 
 	ctx    context.Context
-	cmd    *resp.Command
 	closed bool
+
+	cmd  *resp.Command
+	scmd *resp.CommandStream
 }
 
 func newClient(cn net.Conn) *Client {

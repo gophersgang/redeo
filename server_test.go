@@ -1,6 +1,8 @@
 package redeo
 
 import (
+	"encoding/json"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -16,6 +18,7 @@ var _ = Describe("Server", func() {
 
 	var (
 		pong = func(w resp.ResponseWriter, _ *resp.Command) { w.AppendInlineString("PONG") }
+
 		echo = func(w resp.ResponseWriter, cmd *resp.Command) {
 			if cmd.ArgN() != 1 {
 				w.AppendError(WrongNumberOfArgs(cmd.Name))
@@ -23,9 +26,36 @@ var _ = Describe("Server", func() {
 			}
 			w.AppendBulk(cmd.Arg(0))
 		}
+
 		flush = func(w resp.ResponseWriter, _ *resp.Command) {
 			w.AppendOK()
 			w.Flush()
+		}
+
+		stream = func(w resp.ResponseWriter, cmd *resp.CommandStream) {
+			if cmd.ArgN() != 1 {
+				w.AppendError(WrongNumberOfArgs(cmd.Name))
+				return
+			}
+
+			rd, err := cmd.NextArg()
+			if err != nil {
+				w.AppendErrorf("ERR unable to parse argument: %s", err.Error())
+				return
+			}
+
+			data := struct {
+				N int
+				S string
+			}{}
+
+			if err := json.NewDecoder(rd).Decode(&data); err != nil {
+				w.AppendErrorf("ERR unable to decode argument: %s", err.Error())
+				return
+			}
+
+			w.AppendInlineString(fmt.Sprintf("%s.%d", data.S, data.N))
+			w.AppendOK()
 		}
 	)
 
@@ -52,11 +82,12 @@ var _ = Describe("Server", func() {
 		subject.HandleFunc("pInG", pong)
 		subject.HandleFunc("echo", echo)
 		subject.HandleFunc("flush", flush)
+		subject.HandleStreamFunc("stream", stream)
 	})
 
 	It("should register handlers", func() {
-		Expect(subject.commands).To(HaveLen(3))
-		Expect(subject.commands).To(HaveKey("ping"))
+		Expect(subject.cmds).To(HaveLen(4))
+		Expect(subject.cmds).To(HaveKey("ping"))
 	})
 
 	It("should serve", func() {
@@ -64,7 +95,7 @@ var _ = Describe("Server", func() {
 			cw.WriteCmd("PING")
 			Expect(cw.Flush()).To(Succeed())
 
-			s, err := cr.ReadStatus()
+			s, err := cr.ReadInlineString()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("PONG"))
 
@@ -89,6 +120,17 @@ var _ = Describe("Server", func() {
 		})
 	})
 
+	It("should serve streams", func() {
+		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
+			cw.WriteCmdString("STREAM", `{"n":8,"s":"hello"}`)
+			Expect(cw.Flush()).To(Succeed())
+
+			s, err := cr.ReadInlineString()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).To(Equal("hello.8"))
+		})
+	})
+
 	It("should handle pipelines", func() {
 		runServer(subject, func(cn net.Conn, cw *resp.RequestWriter, cr resp.ResponseReader) {
 			cw.WriteCmd("PING")
@@ -97,7 +139,7 @@ var _ = Describe("Server", func() {
 			Expect(cw.Flush()).To(Succeed())
 
 			for i := 0; i < 3; i++ {
-				s, err := cr.ReadStatus()
+				s, err := cr.ReadInlineString()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(s).To(Equal("PONG"))
 			}
@@ -116,7 +158,7 @@ var _ = Describe("Server", func() {
 			// connection should still be open
 			cw.WriteCmd("PING")
 			Expect(cw.Flush()).To(Succeed())
-			s, err = cr.ReadStatus()
+			s, err = cr.ReadInlineString()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("PONG"))
 		})
@@ -129,7 +171,7 @@ var _ = Describe("Server", func() {
 			cw.WriteCmd("PING")
 			Expect(cw.Flush()).To(Succeed())
 
-			s, err := cr.ReadStatus()
+			s, err := cr.ReadInlineString()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("PONG"))
 
@@ -137,7 +179,7 @@ var _ = Describe("Server", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("ERR unknown command 'BAD'"))
 
-			s, err = cr.ReadStatus()
+			s, err = cr.ReadInlineString()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("PONG"))
 		})
@@ -155,7 +197,7 @@ var _ = Describe("Server", func() {
 			// connection should still be open
 			cw.WriteCmd("PING")
 			Expect(cw.Flush()).To(Succeed())
-			s, err = cr.ReadStatus()
+			s, err = cr.ReadInlineString()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("PONG"))
 		})
@@ -168,7 +210,7 @@ var _ = Describe("Server", func() {
 			cw.WriteCmd("PING")
 			Expect(cw.Flush()).To(Succeed())
 
-			s, err := cr.ReadStatus()
+			s, err := cr.ReadInlineString()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("PONG"))
 
@@ -176,7 +218,7 @@ var _ = Describe("Server", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("ERR wrong number of arguments for 'echo' command"))
 
-			s, err = cr.ReadStatus()
+			s, err = cr.ReadInlineString()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("PONG"))
 		})
@@ -197,7 +239,7 @@ var _ = Describe("Server", func() {
 			// connection should still be open
 			cw.WriteCmd("PING")
 			Expect(cw.Flush()).To(Succeed())
-			s, err = cr.ReadStatus()
+			s, err = cr.ReadInlineString()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("PONG"))
 		})
@@ -208,7 +250,7 @@ var _ = Describe("Server", func() {
 			_, err := cn.Write([]byte("*1\r\n$4\r\nPING\r\n*1\r\n$x\r\nPING\r\n*1\r\n$4\r\nPING\r\n"))
 			Expect(err).NotTo(HaveOccurred())
 
-			s, err := cr.ReadStatus()
+			s, err := cr.ReadInlineString()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("PONG"))
 
@@ -216,7 +258,7 @@ var _ = Describe("Server", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("ERR Protocol error: invalid bulk length"))
 
-			s, err = cr.ReadStatus()
+			s, err = cr.ReadInlineString()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s).To(Equal("PONG"))
 		})

@@ -37,8 +37,8 @@ func Example_client() {
 		}
 
 		switch t {
-		case resp.TypeStatus:
-			s, _ := r.ReadStatus()
+		case resp.TypeInline:
+			s, _ := r.ReadInlineString()
 			fmt.Println(s)
 		case resp.TypeBulk:
 			s, _ := r.ReadBulkString()

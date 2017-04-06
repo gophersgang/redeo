@@ -2,6 +2,7 @@ package resp
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strconv"
 )
@@ -43,7 +44,7 @@ func (b *bufioR) PeekType() (t ResponseType, err error) {
 			t = TypeBulk
 		}
 	case '+':
-		t = TypeStatus
+		t = TypeInline
 	case '-':
 		t = TypeError
 	case ':':
@@ -79,7 +80,7 @@ func (b *bufioR) ReadError() (string, error) {
 	return line.ParseMessage('-')
 }
 
-func (b *bufioR) ReadStatus() (string, error) {
+func (b *bufioR) ReadInlineString() (string, error) {
 	line, err := b.ReadLine()
 	if err != nil {
 		return "", err
@@ -122,6 +123,15 @@ func (b *bufioR) ReadBulk(p []byte) ([]byte, error) {
 	b.r += int(sz)
 	b.skip(2)
 	return p, nil
+}
+
+func (b *bufioR) StreamBulk() (io.Reader, error) {
+	sz, err := b.ReadBulkLen()
+	if err != nil {
+		return nil, err
+	}
+
+	return &bulkReader{bufioR: b, n: sz + 2}, nil
 }
 
 func (b *bufioR) ReadBulkString() (string, error) {
@@ -281,6 +291,36 @@ func (b *bufioR) reset(buf []byte, rd io.Reader) {
 
 // --------------------------------------------------------------------
 
+type bulkReader struct {
+	*bufioR
+	n int64
+}
+
+func (b *bulkReader) Read(p []byte) (n int, err error) {
+	if b.n <= 0 {
+		return 0, io.EOF
+	}
+
+	if int64(len(p)) > b.n {
+		p = p[0:b.n]
+	}
+
+	if b.Buffered() == 0 {
+		n, err = b.rd.Read(p)
+	} else {
+		n = copy(p, b.buf[b.r:b.w])
+		b.r += n
+	}
+
+	b.n -= int64(n)
+	if pad := 2 - b.n; pad > 0 {
+		n -= int(pad)
+	}
+	return
+}
+
+// --------------------------------------------------------------------
+
 type bufioLn []byte
 
 // Trim truncates CRLF
@@ -427,6 +467,11 @@ func (b *bufioW) AppendError(msg string) {
 	b.buf = append(b.buf, '-')
 	b.buf = append(b.buf, msg...)
 	b.buf = append(b.buf, binCRLF...)
+}
+
+// AppendErrorf appends an error message to the output buffer
+func (b *bufioW) AppendErrorf(pattern string, args ...interface{}) {
+	b.AppendError(fmt.Sprintf(pattern, args...))
 }
 
 // AppendInt appends a numeric response to the output buffer

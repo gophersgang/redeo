@@ -65,7 +65,83 @@ var _ = Describe("RequestReader", func() {
 		Expect(cmd).To(MatchCommand(""))
 	})
 
-	It("should deal with inconsistent lengths just like Redis", func() {
+	It("should read commands that are larger than the buffer", func() {
+		r := setup("*2\r\n$4\r\nECHO\r\n$100000\r\n" + strings.Repeat("x", 100000) + "\r\n")
+
+		cmd, err := r.ReadCmd(nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd.Name).To(Equal("ECHO"))
+		Expect(cmd.ArgN()).To(Equal(1))
+		Expect(len(cmd.Arg(0))).To(Equal(100000))
+
+		cmd, err = r.ReadCmd(cmd)
+		Expect(err).To(MatchError("EOF"))
+		Expect(cmd).To(MatchCommand(""))
+	})
+
+	It("should read inline streams", func() {
+		r := setup("PING\r\nEcHO   HeLLO   \r\n")
+
+		cmd, err := r.StreamCmd(nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd).To(MatchStream("PING"))
+		Expect(cmd.ArgN()).To(Equal(0))
+		_, err = cmd.NextArg()
+		Expect(err).To(MatchError("resp: no more arguments"))
+
+		cmd, err = r.StreamCmd(cmd)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd).To(MatchStream("EcHO", "HeLLO"))
+		Expect(cmd.ArgN()).To(Equal(1))
+		_, err = cmd.NextArg()
+		Expect(err).To(MatchError("resp: no more arguments"))
+
+		cmd, err = r.StreamCmd(cmd)
+		Expect(err).To(MatchError("EOF"))
+		Expect(cmd).To(MatchStream(""))
+	})
+
+	It("should read multi-bulk streams", func() {
+		r := setup("*1\r\n$4\r\nPING\r\n*2\r\n$4\r\nEcHO\r\n$5\r\nHeLLO\r\n")
+
+		cmd, err := r.StreamCmd(nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd).To(MatchStream("PING"))
+		Expect(cmd.ArgN()).To(Equal(0))
+		_, err = cmd.NextArg()
+		Expect(err).To(MatchError("resp: no more arguments"))
+
+		cmd, err = r.StreamCmd(cmd)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd).To(MatchStream("EcHO", "HeLLO"))
+		Expect(cmd.ArgN()).To(Equal(1))
+		_, err = cmd.NextArg()
+		Expect(err).To(MatchError("resp: no more arguments"))
+
+		cmd, err = r.StreamCmd(cmd)
+		Expect(err).To(MatchError("EOF"))
+		Expect(cmd).To(MatchStream(""))
+	})
+
+	It("should stream commands that are larger than the buffer", func() {
+		r := setup("*2\r\n$4\r\nECHO\r\n$100000\r\n" + strings.Repeat("x", 100000) + "\r\n")
+
+		buf := new(bytes.Buffer)
+		cmd, err := r.StreamCmd(nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd.Name).To(Equal("ECHO"))
+		Expect(cmd.ArgN()).To(Equal(1))
+
+		arg, err := cmd.NextArg()
+		Expect(err).NotTo(HaveOccurred())
+
+		n, err := buf.ReadFrom(arg)
+		Expect(n).To(Equal(int64(100000)))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(buf.Len()).To(Equal(100000))
+	})
+
+	It("should recover inconsistent lengths just like Redis", func() {
 		r := setup("*1\r\n$4\r\nPING123\r\n*1\r\n$4\r\nPING\r\n")
 
 		cmd, err := r.ReadCmd(nil)
@@ -79,16 +155,6 @@ var _ = Describe("RequestReader", func() {
 		cmd, err = r.ReadCmd(cmd)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(cmd).To(MatchCommand("PING"))
-	})
-
-	It("should read commands that are larger than the buffer", func() {
-		r := setup("*2\r\n$4\r\nECHO\r\n$100000\r\n" + strings.Repeat("x", 100000) + "\r\n")
-
-		cmd, err := r.ReadCmd(nil)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(cmd.Name).To(Equal("ECHO"))
-		Expect(cmd.ArgN()).To(Equal(1))
-		Expect(len(cmd.Arg(0))).To(Equal(100000))
 	})
 
 	DescribeTable("should read commands",
@@ -144,6 +210,12 @@ var _ = Describe("RequestReader", func() {
 			[][]string{
 				{"PING"},
 				{"PING"},
+			}),
+		Entry("multi-bulks",
+			"*2\r\n$4\r\nECHO\r\n$4\r\nsome\r\n*2\r\n$4\r\nECHO\r\n$4\r\nmore\r\n",
+			[][]string{
+				{"ECHO", "some"},
+				{"ECHO", "more"},
 			}),
 	)
 

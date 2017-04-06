@@ -61,8 +61,8 @@ func main() {
 
 	// Append an array
 	w.AppendArrayLen(3)
-	w.AppendString("Adam")
-	w.AppendString("Had'em")
+	w.AppendBulkString("Adam")
+	w.AppendBulkString("Had'em")
 	w.AppendNil()
 
 	// Writer data must be flushed manually
@@ -121,8 +121,8 @@ func main() {
 		}
 
 		switch t {
-		case resp.TypeStatus:
-			s, _ := r.ReadStatus()
+		case resp.TypeInline:
+			s, _ := r.ReadInlineString()
 			fmt.Println(s)
 		case resp.TypeBulk:
 			s, _ := r.ReadBulkString()

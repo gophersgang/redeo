@@ -42,7 +42,7 @@ func main() {
 		w.AppendInlineString("PONG")
 	})
 	srv.HandleFunc("info", func(w resp.ResponseWriter, _ *resp.Command) {
-		w.AppendString(srv.Info().String())
+		w.AppendBulkString(srv.Info().String())
 	})
 
 	// Open a new listener
@@ -120,7 +120,7 @@ func main() {
 			return
 		}
 
-		w.AppendString(val)
+		w.AppendBulkString(val)
 	})
 }
 ```

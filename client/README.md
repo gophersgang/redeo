@@ -43,8 +43,8 @@ func main() {
 		}
 
 		switch t {
-		case resp.TypeStatus:
-			s, _ := cn.ReadStatus()
+		case resp.TypeInline:
+			s, _ := cn.ReadInlineString()
 			fmt.Println(s)
 		case resp.TypeBulk:
 			s, _ := cn.ReadBulkString()

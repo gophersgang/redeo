@@ -115,7 +115,7 @@ var _ = Describe("ResponseReader", func() {
 		// ensure we have consumed everything
 		t, err = subject.PeekType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(t).To(Equal(resp.TypeStatus))
+		Expect(t).To(Equal(resp.TypeInline))
 	})
 
 	It("should read strings", func() {
@@ -132,7 +132,7 @@ var _ = Describe("ResponseReader", func() {
 		// ensure we have consumed everything
 		t, err = subject.PeekType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(t).To(Equal(resp.TypeStatus))
+		Expect(t).To(Equal(resp.TypeInline))
 	})
 
 	It("should read bytes", func() {
@@ -149,7 +149,7 @@ var _ = Describe("ResponseReader", func() {
 		// ensure we have consumed everything
 		t, err = subject.PeekType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(t).To(Equal(resp.TypeStatus))
+		Expect(t).To(Equal(resp.TypeInline))
 	})
 
 	It("should read ints", func() {
@@ -166,7 +166,7 @@ var _ = Describe("ResponseReader", func() {
 		// ensure we have consumed everything
 		t, err = subject.PeekType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(t).To(Equal(resp.TypeStatus))
+		Expect(t).To(Equal(resp.TypeInline))
 	})
 
 	It("should read negative ints", func() {
@@ -183,7 +183,7 @@ var _ = Describe("ResponseReader", func() {
 		// ensure we have consumed everything
 		t, err = subject.PeekType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(t).To(Equal(resp.TypeStatus))
+		Expect(t).To(Equal(resp.TypeInline))
 	})
 
 	It("should read arrays", func() {
@@ -209,7 +209,7 @@ var _ = Describe("ResponseReader", func() {
 		// ensure we have consumed everything
 		t, err = subject.PeekType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(t).To(Equal(resp.TypeStatus))
+		Expect(t).To(Equal(resp.TypeInline))
 	})
 
 	It("should read errors", func() {
@@ -226,7 +226,7 @@ var _ = Describe("ResponseReader", func() {
 		// ensure we have consumed everything
 		t, err = subject.PeekType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(t).To(Equal(resp.TypeStatus))
+		Expect(t).To(Equal(resp.TypeInline))
 	})
 
 	It("should read statuses", func() {
@@ -234,16 +234,16 @@ var _ = Describe("ResponseReader", func() {
 
 		t, err := subject.PeekType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(t).To(Equal(resp.TypeStatus))
+		Expect(t).To(Equal(resp.TypeInline))
 
-		s, err := subject.ReadStatus()
+		s, err := subject.ReadInlineString()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(s).To(Equal("OK"))
 
 		// ensure we have consumed everything
 		t, err = subject.PeekType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(t).To(Equal(resp.TypeStatus))
+		Expect(t).To(Equal(resp.TypeInline))
 	})
 
 	It("should read statuses across buffer overflows", func() {
@@ -257,13 +257,13 @@ var _ = Describe("ResponseReader", func() {
 
 		t, err := subject.PeekType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(t).To(Equal(resp.TypeStatus))
+		Expect(t).To(Equal(resp.TypeInline))
 
-		s, err = subject.ReadStatus()
+		s, err = subject.ReadInlineString()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(s)).To(Equal(4000))
 
-		s, err = subject.ReadStatus()
+		s, err = subject.ReadInlineString()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(s)).To(Equal(4000))
 

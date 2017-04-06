@@ -10,6 +10,7 @@ import (
 // Conn wraps a single network connection and exposes
 // common read/write methods.
 type Conn interface {
+
 	// PeekType returns the type of the next response block
 	PeekType() (resp.ResponseType, error)
 	// ReadNil reads a nil value
@@ -24,8 +25,11 @@ type Conn interface {
 	ReadArrayLen() (int, error)
 	// ReadError reads an error string
 	ReadError() (string, error)
-	// ReadStatus reads a status string
-	ReadStatus() (string, error)
+	// ReadInline reads an inline status string
+	ReadInlineString() (string, error)
+	// StreamBulk returns a bulk-reader
+	StreamBulk() (io.Reader, error)
+
 	// WriteCmd writes a full command as part of a pipeline. To execute the pipeline,
 	// you must call Flush.
 	WriteCmd(cmd string, args ...[]byte)

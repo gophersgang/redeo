@@ -3,6 +3,7 @@ package redeo
 import (
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bsm/redeo/resp"
@@ -10,9 +11,11 @@ import (
 
 // Server configuration
 type Server struct {
-	config   *Config
-	info     *ServerInfo
-	commands map[string]Handler
+	config *Config
+	info   *ServerInfo
+
+	cmds map[string]interface{}
+	mu   sync.RWMutex
 }
 
 // NewServer creates a new server instance
@@ -22,9 +25,9 @@ func NewServer(config *Config) *Server {
 	}
 
 	return &Server{
-		config:   config,
-		info:     newServerInfo(),
-		commands: make(map[string]Handler),
+		config: config,
+		info:   newServerInfo(),
+		cmds:   make(map[string]interface{}),
 	}
 }
 
@@ -32,14 +35,27 @@ func NewServer(config *Config) *Server {
 func (srv *Server) Info() *ServerInfo { return srv.info }
 
 // Handle registers a handler for a command.
-// Not thread-safe, don't call from multiple goroutines
-func (srv *Server) Handle(name string, handler Handler) {
-	srv.commands[strings.ToLower(name)] = handler
+func (srv *Server) Handle(name string, h Handler) {
+	srv.mu.Lock()
+	srv.cmds[strings.ToLower(name)] = h
+	srv.mu.Unlock()
 }
 
-// HandleFunc registers a handler callback for a command
-func (srv *Server) HandleFunc(name string, callback HandlerFunc) {
-	srv.Handle(name, Handler(callback))
+// HandleFunc registers a handler func for a command
+func (srv *Server) HandleFunc(name string, fn HandlerFunc) {
+	srv.Handle(name, Handler(fn))
+}
+
+// HandleStream registers a handler for a streaming command.
+func (srv *Server) HandleStream(name string, h StreamHandler) {
+	srv.mu.Lock()
+	srv.cmds[strings.ToLower(name)] = h
+	srv.mu.Unlock()
+}
+
+// HandleStreamFunc registers a handler func for a command
+func (srv *Server) HandleStreamFunc(name string, fn StreamHandlerFunc) {
+	srv.HandleStream(name, StreamHandler(fn))
 }
 
 // Serve accepts incoming connections on a listener, creating a
@@ -104,7 +120,10 @@ func (srv *Server) perform(c *Client, name string) (err error) {
 	norm := strings.ToLower(name)
 
 	// find handler
-	handler, ok := srv.commands[norm]
+	srv.mu.RLock()
+	h, ok := srv.cmds[norm]
+	srv.mu.RUnlock()
+
 	if !ok {
 		c.wr.AppendError(UnknownCommand(name))
 		_ = c.rd.SkipCmd()
@@ -114,13 +133,21 @@ func (srv *Server) perform(c *Client, name string) (err error) {
 	// register call
 	srv.info.command(c.id, norm)
 
-	// read command
-	if c.cmd, err = c.rd.ReadCmd(c.cmd); err != nil {
-		return
-	}
+	switch handler := h.(type) {
+	case Handler:
+		if c.cmd, err = c.rd.ReadCmd(c.cmd); err != nil {
+			return
+		}
+		handler.ServeRedeo(c.wr, c.cmd)
 
-	// serve command
-	handler.ServeRedeo(c.wr, c.cmd)
+	case StreamHandler:
+		if c.scmd, err = c.rd.StreamCmd(c.scmd); err != nil {
+			return
+		}
+		defer c.scmd.Discard()
+
+		handler.ServeRedeoStream(c.wr, c.scmd)
+	}
 
 	// flush when buffer is large enough
 	if n := c.wr.Buffered(); n > resp.MaxBufferSize/2 {

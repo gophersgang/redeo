@@ -17,6 +17,8 @@ type ResponseWriter interface {
 	AppendInlineString(s string)
 	// AppendError appends an error message to the output buffer.
 	AppendError(msg string)
+	// AppendErrorf appends an error message to the output buffer.
+	AppendErrorf(pattern string, args ...interface{})
 	// AppendInt appends a numeric response to the output buffer.
 	AppendInt(n int64)
 	// AppendNil appends a nil-value to the output buffer.
@@ -51,7 +53,7 @@ const (
 	TypeUnknown ResponseType = iota
 	TypeArray
 	TypeBulk
-	TypeStatus
+	TypeInline
 	TypeError
 	TypeInt
 	TypeNil
@@ -68,14 +70,16 @@ type ResponseReader interface {
 	ReadBulkString() (string, error)
 	// ReadBulk reads a bulk and returns bytes (optionally appending to a passed p buffer)
 	ReadBulk(p []byte) ([]byte, error)
+	// StreamBulk parses a bulk responses and returns a streaming reader object
+	StreamBulk() (io.Reader, error)
 	// ReadInt reads an int value
 	ReadInt() (int64, error)
 	// ReadArrayLen reads the array length
 	ReadArrayLen() (int, error)
 	// ReadError reads an error string
 	ReadError() (string, error)
-	// ReadStatus reads a status string
-	ReadStatus() (string, error)
+	// ReadInlineString reads a status string
+	ReadInlineString() (string, error)
 	// Reset resets the reader to a new reader and recycles internal buffers.
 	Reset(r io.Reader)
 }

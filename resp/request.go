@@ -40,22 +40,21 @@ func (r *RequestReader) ReadCmd(cmd *Command) (*Command, error) {
 		cmd.reset()
 	}
 
-	err := cmd.parse(r.r)
+	err := parseCommand(cmd, r.r)
 	return cmd, err
 }
 
 // StreamCmd reads the next command as a stream.
-// func (r *RequestReader) StreamCmd() (*CommandStream, error) {
-// 	c, err := r.r.PeekByte()
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func (r *RequestReader) StreamCmd(cmd *CommandStream) (*CommandStream, error) {
+	if cmd == nil {
+		cmd = new(CommandStream)
+	} else {
+		cmd.reset()
+	}
 
-// 	if c == '*' {
-// 		return r.readMultiBulkCmd(cmd)
-// 	}
-// 	return nil, nil
-// }
+	err := parseCommand(cmd, r.r)
+	return cmd, err
+}
 
 // SkipCmd skips the next command.
 func (r *RequestReader) SkipCmd() error {
