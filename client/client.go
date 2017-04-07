@@ -58,6 +58,9 @@ func (c *Client) Put(cn Conn) {
 	cs, ok := cn.(*conn)
 	if !ok {
 		return
+	} else if cs.failed {
+		_ = cs.Close()
+		return
 	}
 
 	c.writers.Put(cs.RequestWriter)

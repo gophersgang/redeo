@@ -29,6 +29,16 @@ func ExampleServer() {
 	srv.Serve(lis)
 }
 
+func ExamplePing() {
+	srv := redeo.NewServer(nil)
+	srv.Handle("ping", redeo.Ping())
+}
+
+func ExampleInfo() {
+	srv := redeo.NewServer(nil)
+	srv.Handle("info", redeo.Info(srv))
+}
+
 func ExampleHandlerFunc() {
 	mu := sync.RWMutex{}
 	myData := make(map[string]map[string]string)

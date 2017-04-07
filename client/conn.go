@@ -10,6 +10,9 @@ import (
 // Conn wraps a single network connection and exposes
 // common read/write methods.
 type Conn interface {
+	// MarkFailed marks the connection as failed which
+	// will force it to be closed instead of being returned to the pool
+	MarkFailed()
 
 	// PeekType returns the type of the next response block
 	PeekType() (resp.ResponseType, error)
@@ -59,6 +62,10 @@ type conn struct {
 
 	*resp.RequestWriter
 	resp.ResponseReader
+
+	failed bool
 }
 
+// MarkFailed implements Conn interface.
+func (c *conn) MarkFailed()  { c.failed = true }
 func (c *conn) madeByRedeo() {}

@@ -14,6 +14,27 @@ func WrongNumberOfArgs(cmd string) string {
 	return "ERR wrong number of arguments for '" + cmd + "' command"
 }
 
+// Ping returns a ping handler
+func Ping() Handler {
+	return HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
+		switch c.ArgN() {
+		case 0:
+			w.AppendBulkString("PONG")
+		case 1:
+			w.AppendBulk(c.Arg(0))
+		default:
+			w.AppendError(WrongNumberOfArgs(c.Name))
+		}
+	})
+}
+
+// Info returns an info handler
+func Info(s *Server) Handler {
+	return HandlerFunc(func(w resp.ResponseWriter, c *resp.Command) {
+		w.AppendBulkString(s.Info().String())
+	})
+}
+
 // --------------------------------------------------------------------
 
 // Handler is an abstract handler interface for handling commands
