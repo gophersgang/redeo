@@ -8,7 +8,7 @@ import (
 	"github.com/bsm/redeo/resp"
 )
 
-func ExampleClient() {
+func ExamplePool() {
 	client, _ := client.New(&pool.Options{
 		InitialSize: 1,
 	}, nil)

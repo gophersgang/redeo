@@ -10,15 +10,15 @@ import (
 	"github.com/bsm/redeo/resp"
 )
 
-// Client is a pooled minimalist redis client
-type Client struct {
+// Pool is a minimalist redis client connection pool
+type Pool struct {
 	conns   *pool.Pool
 	readers sync.Pool
 	writers sync.Pool
 }
 
-// New initializes a new client with a custom dialer
-func New(opt *pool.Options, dialer func() (net.Conn, error)) (*Client, error) {
+// New initializes a new pool with a custom dialer
+func New(opt *pool.Options, dialer func() (net.Conn, error)) (*Pool, error) {
 	if dialer == nil {
 		dialer = func() (net.Conn, error) {
 			return net.Dial("tcp", "127.0.0.1:6379")
@@ -30,14 +30,14 @@ func New(opt *pool.Options, dialer func() (net.Conn, error)) (*Client, error) {
 		return nil, err
 	}
 
-	return &Client{
+	return &Pool{
 		conns: conns,
 	}, nil
 }
 
 // Get returns a connection
-func (c *Client) Get() (Conn, error) {
-	cn, err := c.conns.Get()
+func (p *Pool) Get() (Conn, error) {
+	cn, err := p.conns.Get()
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +45,8 @@ func (c *Client) Get() (Conn, error) {
 	return &conn{
 		Conn: cn,
 
-		RequestWriter:  c.newRequestWriter(cn),
-		ResponseReader: c.newResponseReader(cn),
+		RequestWriter:  p.newRequestWriter(cn),
+		ResponseReader: p.newResponseReader(cn),
 	}, nil
 }
 
@@ -54,7 +54,7 @@ func (c *Client) Get() (Conn, error) {
 // Call this method after every call/pipeline.
 // Do not use the connection again after this method
 // is triggered.
-func (c *Client) Put(cn Conn) {
+func (p *Pool) Put(cn Conn) {
 	cs, ok := cn.(*conn)
 	if !ok {
 		return
@@ -63,18 +63,18 @@ func (c *Client) Put(cn Conn) {
 		return
 	}
 
-	c.writers.Put(cs.RequestWriter)
-	c.readers.Put(cs.ResponseReader)
-	c.conns.Put(cs.Conn)
+	p.writers.Put(cs.RequestWriter)
+	p.readers.Put(cs.ResponseReader)
+	p.conns.Put(cs.Conn)
 }
 
 // Close closes the client and all underlying connections
-func (c *Client) Close() error {
-	return c.conns.Close()
+func (p *Pool) Close() error {
+	return p.conns.Close()
 }
 
-func (c *Client) newRequestWriter(cn net.Conn) *resp.RequestWriter {
-	if v := c.writers.Get(); v != nil {
+func (p *Pool) newRequestWriter(cn net.Conn) *resp.RequestWriter {
+	if v := p.writers.Get(); v != nil {
 		w := v.(*resp.RequestWriter)
 		w.Reset(cn)
 		return w
@@ -82,8 +82,8 @@ func (c *Client) newRequestWriter(cn net.Conn) *resp.RequestWriter {
 	return resp.NewRequestWriter(cn)
 }
 
-func (c *Client) newResponseReader(cn net.Conn) resp.ResponseReader {
-	if v := c.readers.Get(); v != nil {
+func (p *Pool) newResponseReader(cn net.Conn) resp.ResponseReader {
+	if v := p.readers.Get(); v != nil {
 		r := v.(resp.ResponseReader)
 		r.Reset(cn)
 		return r
